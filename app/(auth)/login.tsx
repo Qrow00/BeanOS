@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
 import { useThemeStore } from '../../src/store/themeStore';
+import { getDatabase } from '../../src/database/connection';
+import * as usersRepo from '../../src/database/users';
+import type { User } from '../../src/types/database';
 import Logo from '../../src/components/ui/Logo';
-import Input from '../../src/components/ui/Input';
-import Button from '../../src/components/ui/Button';
+import UserProfileCard from '../../src/components/auth/UserProfileCard';
+import PinNumpad from '../../src/components/auth/PinNumpad';
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const { login, isLoading, error, isAuthenticated } = useAuthStore();
   const colors = useThemeStore(s => s.colors);
   const router = useRouter();
@@ -21,59 +24,73 @@ export default function LoginScreen() {
     }
   }, [isAuthenticated]);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) return;
-    await login(username.trim(), password);
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const all = await usersRepo.getAllUsers(db);
+        setUsers(all);
+      } catch {}
+    })();
+  }, []);
+
+  const handleSelectUser = (user: User) => {
+    setSelectedUser(user);
   };
 
+  const handlePinComplete = (pin: string) => {
+    if (!selectedUser) return;
+    login(selectedUser.id, pin);
+  };
+
+  const handleBack = () => {
+    setSelectedUser(null);
+  };
+
+  if (selectedUser) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.pinWrapper}>
+          <PinNumpad
+            user={selectedUser}
+            onPinComplete={handlePinComplete}
+            onBack={handleBack}
+            colors={colors}
+            isLoading={isLoading}
+            error={error}
+          />
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.logoContainer}>
-          <Logo size="xlarge" />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.selectWrapper}>
+        <View style={styles.header}>
+          <Logo size={170} />
         </View>
 
         <Text style={[styles.appName, { color: colors.primary }]}>{APP_NAME}</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign in to your account</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Select User</Text>
 
-        <View style={styles.form}>
-          <Input
-            label="Username"
-            value={username}
-            onChangeText={setUsername}
-            placeholder="Enter username"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter password"
-            secureTextEntry
-          />
-
-          {error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
-
-          <Button
-            title="Sign In"
-            onPress={handleLogin}
-            loading={isLoading}
-            disabled={!username.trim() || !password.trim()}
-          />
+        <View style={styles.grid}>
+          {users.map(user => (
+            <View key={user.id} style={styles.gridCell}>
+              <UserProfileCard
+                user={user}
+                onSelect={handleSelectUser}
+                colors={colors}
+              />
+            </View>
+          ))}
         </View>
 
-        <View style={[styles.credentials, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.credTitle, { color: colors.textSecondary }]}>Demo Credentials</Text>
-          <Text style={[styles.credText, { color: colors.textSecondary }]}>Admin: admin / admin123</Text>
-          <Text style={[styles.credText, { color: colors.textSecondary }]}>User: user / user123</Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        {users.length === 0 && (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: SPACING.xl }} />
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -81,14 +98,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    flexGrow: 1,
+  selectWrapper: {
+    flex: 1,
     justifyContent: 'center',
     padding: SPACING.lg,
   },
-  logoContainer: {
+  pinWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  header: {
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   appName: {
     fontSize: FONT_SIZES.xxl,
@@ -96,31 +117,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
     textAlign: 'center',
     marginBottom: SPACING.xl,
-  },
-  form: {
-    marginBottom: SPACING.lg,
-  },
-  error: {
-    fontSize: FONT_SIZES.sm,
-    textAlign: 'center',
-    marginBottom: SPACING.md,
-  },
-  credentials: {
-    borderRadius: 12,
-    padding: SPACING.md,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  credTitle: {
-    fontSize: FONT_SIZES.sm,
     fontWeight: '600',
-    marginBottom: SPACING.xs,
   },
-  credText: {
-    fontSize: FONT_SIZES.xs,
-    lineHeight: 18,
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -SPACING.xs,
+  },
+  gridCell: {
+    width: '50%',
+    paddingHorizontal: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
 });

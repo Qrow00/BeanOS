@@ -1,17 +1,16 @@
-import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, Image } from 'react-native';
+import { useState, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
 import { useProductStore } from '../../src/store/productStore';
-import { useThemeStore } from '../../src/store/themeStore';
+import { useThemeStore, lightTheme, darkTheme } from '../../src/store/themeStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import { getDatabase } from '../../src/database/connection';
 import { exportToExcel, importFromExcel } from '../../src/services/importExport';
-import Logo from '../../src/components/ui/Logo';
 import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
+import ThemeExpandOverlay from '../../src/components/ui/ThemeExpandOverlay';
 
 const currencies = [
   { symbol: '₱', code: 'PHP', label: 'Philippine Peso' },
@@ -21,15 +20,33 @@ const currencies = [
   { symbol: '¥', code: 'JPY', label: 'Japanese Yen' },
 ];
 
+const MANAGEMENT_ACTIONS = [
+  { title: 'Add Product', icon: '📦', route: '/(app)/inventory/new' },
+  { title: 'New Transaction', icon: '💸', route: '/(app)/finance/new' },
+] as const;
+
+const STAFF_NAV_LINKS = [
+  { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
+  { title: 'Loyalty Card', icon: '💳', route: '/(app)/loyalty' },
+] as const;
+
+const ADMIN_NAV_LINKS = [
+  { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
+  { title: 'Loyalty Card', icon: '💳', route: '/(app)/loyalty' },
+] as const;
+
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, isAdmin, logout } = useAuthStore();
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme } = useThemeStore();
-  const { currencySymbol, currencyCode, setCurrency, gcashQrUri, gcashCompanyName, mayaQrUri, mayaCompanyName, saveGcashQr, saveGcashCompanyName, saveMayaQr, saveMayaCompanyName } = useSettingsStore();
+  const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [themeOverlay, setThemeOverlay] = useState<{ originX: number; originY: number; targetBg: string } | null>(null);
+  const isAnimatingRef = useRef(false);
+  const switchRef = useRef<View>(null);
 
   const handleExport = async () => {
     setExporting(true);
@@ -60,210 +77,212 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleThemeToggle = () => {
+    if (isAnimatingRef.current) return;
+    switchRef.current?.measureInWindow((x, y, width, height) => {
+      isAnimatingRef.current = true;
+      const targetBg = mode === 'dark' ? lightTheme.background : darkTheme.background;
+      setThemeOverlay({ originX: x + width / 2, originY: y + height / 2, targetBg });
+    });
+  };
+
+  const handleThemeTransitionComplete = () => {
+    toggleTheme();
+    setThemeOverlay(null);
+    isAnimatingRef.current = false;
+  };
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Brand Logo</Text>
-        <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Tap to change your brand logo — previewed in both themes</Text>
-        <View style={styles.logoRow}>
-          <View style={styles.logoCol}>
-            <Text style={[styles.logoLabel, { color: colors.textSecondary }]}>☀️ Light</Text>
-            <Logo size="large" editable />
+    <View style={{ flex: 1 }}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <Card style={styles.section}>
+          <View style={styles.themeRow}>
+            <View style={styles.themeInfo}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Dark Mode</Text>
+              <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Toggle between light and dark appearance</Text>
+            </View>
+            <View ref={switchRef} collapsable={false}>
+              <Switch
+                value={mode === 'dark'}
+                onValueChange={handleThemeToggle}
+                trackColor={{ false: colors.disabled, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </View>
           </View>
-          <View style={styles.logoCol}>
-            <Text style={[styles.logoLabel, { color: colors.textSecondary }]}>🌙 Dark</Text>
-            <Logo size="large" previewMode="dark" />
+        </Card>
+
+        {isAdmin() && (
+          <>
+            {MANAGEMENT_ACTIONS.map((action, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => router.push(action.route as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
+                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+              </TouchableOpacity>
+            ))}
+            {ADMIN_NAV_LINKS.map((action, i) => (
+              <TouchableOpacity
+                key={`nav-${i}`}
+                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => router.push(action.route as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
+                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {!isAdmin() && (
+          <>
+            {STAFF_NAV_LINKS.map((action, i) => (
+              <TouchableOpacity
+                key={`staff-${i}`}
+                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => router.push(action.route as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
+                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        <TouchableOpacity
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/(app)/brand-logo')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.actionIcon}>🏷️</Text>
+          <Text style={[styles.actionTitle, { color: colors.text }]}>Brand Logo</Text>
+          <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/(app)/payment-qr')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.actionIcon}>📱</Text>
+          <Text style={[styles.actionTitle, { color: colors.text }]}>Payment QR Codes</Text>
+          <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency</Text>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Select the currency used throughout the app</Text>
+          <Text style={[styles.currentCurrency, { color: colors.primary }]}>
+            Current: {currencySymbol} ({currencyCode})
+          </Text>
+          <Button title="Change Currency" onPress={() => setShowCurrencyModal(true)} variant="outline" />
+        </Card>
+
+        <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)}>
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
+              <FlatList
+                data={currencies}
+                keyExtractor={c => c.code}
+                renderItem={({ item: c }) => (
+                  <TouchableOpacity
+                    style={[styles.currencyRow, { borderBottomColor: colors.border }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
+                    onPress={() => {
+                      setCurrency(c.symbol, c.code);
+                      setShowCurrencyModal(false);
+                    }}
+                  >
+                    <Text style={[styles.currencySymbol, { color: colors.text }]}>{c.symbol}</Text>
+                    <View style={styles.currencyInfo}>
+                      <Text style={[styles.currencyLabel, { color: colors.text }]}>{c.code}</Text>
+                      <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{c.label}</Text>
+                    </View>
+                    {currencyCode === c.code && (
+                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowCurrencyModal(false)}>
+                <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Card>
+        </Modal>
 
-      <Card style={styles.section}>
-        <View style={styles.themeRow}>
-          <View style={styles.themeInfo}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Dark Mode</Text>
-            <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Toggle between light and dark appearance</Text>
-          </View>
-          <Switch
-            value={mode === 'dark'}
-            onValueChange={toggleTheme}
-            trackColor={{ false: colors.disabled, true: colors.primary }}
-            thumbColor="#fff"
-          />
-        </View>
-      </Card>
-
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency</Text>
-        <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Select the currency used throughout the app</Text>
-        <Text style={[styles.currentCurrency, { color: colors.primary }]}>
-          Current: {currencySymbol} ({currencyCode})
-        </Text>
-        <Button title="Change Currency" onPress={() => setShowCurrencyModal(true)} variant="outline" />
-      </Card>
-
-      <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
-            <FlatList
-              data={currencies}
-              keyExtractor={c => c.code}
-              renderItem={({ item: c }) => (
-                <TouchableOpacity
-                  style={[styles.currencyRow, { borderBottomColor: colors.border }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
-                  onPress={() => {
-                    setCurrency(c.symbol, c.code);
-                    setShowCurrencyModal(false);
-                  }}
-                >
-                  <Text style={[styles.currencySymbol, { color: colors.text }]}>{c.symbol}</Text>
-                  <View style={styles.currencyInfo}>
-                    <Text style={[styles.currencyLabel, { color: colors.text }]}>{c.code}</Text>
-                    <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{c.label}</Text>
-                  </View>
-                  {currencyCode === c.code && (
-                    <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              )}
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
+          <View style={styles.infoRow}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
+            <TextInput
+              style={[styles.storeNameInput, { color: colors.text, borderBottomColor: colors.border }]}
+              value={storeName}
+              onChangeText={saveStoreName}
+              placeholder="Store name"
+              placeholderTextColor={colors.disabled}
             />
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowCurrencyModal(false)}>
-              <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
+          </View>
+        </Card>
 
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment QR Codes</Text>
-        <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code images and company names for GCash and Maya payments</Text>
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Export your inventory to Excel or bulk import from a file</Text>
+          <View style={styles.exportImportRow}>
+            <Button
+              title="Export to Excel"
+              onPress={handleExport}
+              variant="primary"
+              loading={exporting}
+              style={styles.actionBtn}
+            />
+            <Button
+              title="Import from File"
+              onPress={handleImport}
+              variant="outline"
+              loading={importing}
+              style={styles.actionBtn}
+            />
+          </View>
+        </Card>
 
-        <Text style={[styles.qrSectionLabel, { color: colors.text }]}>GCash</Text>
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
+          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>{APP_NAME} v1.0.0</Text>
+          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>Offline-First Mobile POS System</Text>
+        </Card>
+
         <TouchableOpacity
-          style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
-          onPress={async () => {
-            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!perm.granted) {
-              Alert.alert('Permission Required', 'Camera roll access is needed to set the QR code.');
-              return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ['images'],
-              quality: 0.8,
-              allowsEditing: true,
-              aspect: [1, 1],
-            });
-            if (!result.canceled && result.assets[0]) {
-              await saveGcashQr(result.assets[0].uri);
-            }
-          }}
+          style={[styles.logoutBtn, { backgroundColor: '#FF3B30' }]}
+          onPress={() => { logout(); router.replace('/(auth)/login'); }}
+          activeOpacity={0.7}
         >
-          {gcashQrUri ? (
-            <Image source={{ uri: gcashQrUri }} style={styles.qrPreview} resizeMode="contain" />
-          ) : (
-            <View style={styles.qrPickerPlaceholder}>
-              <Text style={[styles.qrPickerIcon, { color: colors.textSecondary }]}>📱</Text>
-              <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>Tap to set QR</Text>
-            </View>
-          )}
+          <Text style={styles.logoutIcon}>🚪</Text>
+          <Text style={styles.logoutBtnText}>Logout</Text>
         </TouchableOpacity>
-        <TextInput
-          style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-          value={gcashCompanyName}
-          onChangeText={saveGcashCompanyName}
-          placeholder="e.g. My Store GCash"
-          placeholderTextColor={colors.disabled}
+      </ScrollView>
+
+      {themeOverlay && (
+        <ThemeExpandOverlay
+          originX={themeOverlay.originX}
+          originY={themeOverlay.originY}
+          targetBg={themeOverlay.targetBg}
+          onComplete={handleThemeTransitionComplete}
         />
-
-        <Text style={[styles.qrSectionLabel, { color: colors.text, marginTop: SPACING.md }]}>Maya</Text>
-        <TouchableOpacity
-          style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
-          onPress={async () => {
-            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!perm.granted) {
-              Alert.alert('Permission Required', 'Camera roll access is needed to set the QR code.');
-              return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ['images'],
-              quality: 0.8,
-              allowsEditing: true,
-              aspect: [1, 1],
-            });
-            if (!result.canceled && result.assets[0]) {
-              await saveMayaQr(result.assets[0].uri);
-            }
-          }}
-        >
-          {mayaQrUri ? (
-            <Image source={{ uri: mayaQrUri }} style={styles.qrPreview} resizeMode="contain" />
-          ) : (
-            <View style={styles.qrPickerPlaceholder}>
-              <Text style={[styles.qrPickerIcon, { color: colors.textSecondary }]}>📱</Text>
-              <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>Tap to set QR</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <TextInput
-          style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-          value={mayaCompanyName}
-          onChangeText={saveMayaCompanyName}
-          placeholder="e.g. My Store Maya"
-          placeholderTextColor={colors.disabled}
-        />
-      </Card>
-
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
-        <View style={styles.infoRow}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{APP_NAME}</Text>
-        </View>
-        <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
-          <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
-        </View>
-      </Card>
-
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
-        <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Export your inventory to Excel or bulk import from a file</Text>
-        <View style={styles.exportImportRow}>
-          <Button
-            title="Export to Excel"
-            onPress={handleExport}
-            variant="primary"
-            loading={exporting}
-            style={styles.actionBtn}
-          />
-          <Button
-            title="Import from File"
-            onPress={handleImport}
-            variant="outline"
-            loading={importing}
-            style={styles.actionBtn}
-          />
-        </View>
-      </Card>
-
-      <Card style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-        <Text style={[styles.aboutText, { color: colors.textSecondary }]}>{APP_NAME} v1.0.0</Text>
-        <Text style={[styles.aboutText, { color: colors.textSecondary }]}>Offline-First Mobile POS System</Text>
-      </Card>
-
-      <TouchableOpacity
-        style={[styles.logoutBtn, { backgroundColor: '#FF3B30' }]}
-        onPress={() => {
-          logout();
-          router.replace('/(auth)/login');
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.logoutIcon}>🚪</Text>
-        <Text style={styles.logoutBtnText}>Logout</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      )}
+    </View>
   );
 }
 
@@ -272,8 +291,39 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.md,
   },
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: SPACING.sm,
+  },
+  actionIcon: {
+    width: 28,
+    fontSize: 20,
+    textAlign: 'center',
+    marginRight: SPACING.md,
+  },
+  actionTitle: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  actionArrow: {
+    width: 20,
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'transparent',
+    marginVertical: SPACING.sm,
+  },
   section: {
     marginBottom: SPACING.md,
+    paddingTop: SPACING.sm,
   },
   sectionTitle: {
     fontSize: FONT_SIZES.lg,
@@ -283,19 +333,6 @@ const styles = StyleSheet.create({
   sectionDesc: {
     fontSize: FONT_SIZES.sm,
     marginBottom: SPACING.md,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    paddingVertical: SPACING.md,
-  },
-  logoCol: {
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  logoLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
   },
   themeRow: {
     flexDirection: 'row',
@@ -379,6 +416,15 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
+  storeNameInput: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: SPACING.md,
+    borderBottomWidth: 1,
+    paddingVertical: 2,
+  },
   exportImportRow: {
     gap: SPACING.sm,
   },
@@ -388,46 +434,6 @@ const styles = StyleSheet.create({
   aboutText: {
     fontSize: FONT_SIZES.sm,
     lineHeight: 22,
-  },
-  qrSectionLabel: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
-    marginBottom: SPACING.sm,
-    marginTop: SPACING.sm,
-  },
-  qrPicker: {
-    width: 140,
-    height: 140,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    overflow: 'hidden',
-    marginBottom: SPACING.sm,
-  },
-  qrPreview: {
-    width: '100%',
-    height: '100%',
-  },
-  qrPickerPlaceholder: {
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  qrPickerIcon: {
-    fontSize: 32,
-  },
-  qrPickerText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
-  },
-  qrNameInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    fontSize: FONT_SIZES.sm,
   },
   logoutBtn: {
     flexDirection: 'row',

@@ -31,10 +31,12 @@ export const useProductStore = create<ProductState>((set, get) => ({
   addProduct: async (input: ProductInput) => {
     try {
       const db = await getDb();
-      await productsRepo.createProduct(db, input);
+      const id = await productsRepo.createProduct(db, input);
       await get().fetchProducts();
+      return id;
     } catch (err) {
       set({ error: 'Failed to add product' });
+      return 0;
     }
   },
 

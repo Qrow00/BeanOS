@@ -1,5 +1,6 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useThemeStore } from '../../store/themeStore';
+import { useSettingsStore } from '../../store/settingsStore';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { SPACING, FONT_SIZES } from '../../utils/constants';
 import type { CartItem } from '../../types/store';
@@ -30,9 +31,11 @@ export default function ReceiptScreen({
   onNewSale,
 }: ReceiptScreenProps) {
   const colors = useThemeStore(s => s.colors);
+  const storeName = useSettingsStore(s => s.storeName);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.storeName, { color: colors.text }]}>{storeName}</Text>
       <Text style={[styles.title, { color: colors.text }]}>Receipt</Text>
       <Text style={[styles.receiptNo, { color: colors.textSecondary }]}>#{receiptNumber}</Text>
       <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(new Date().toISOString())}</Text>
@@ -89,6 +92,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  storeName: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
     textAlign: 'center',
     marginBottom: SPACING.xs,
   },

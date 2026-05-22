@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useProductStore } from '../../../src/store/productStore';
-import { useAuthStore } from '../../../src/store/authStore';
 import ProductCard from '../../../src/components/inventory/ProductCard';
 import SearchBar from '../../../src/components/inventory/SearchBar';
 
 export default function InventoryScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
-  const { isAdmin } = useAuthStore();
   const {
     fetchProducts,
     getFilteredProducts,
@@ -35,8 +32,18 @@ export default function InventoryScreen() {
   const categories = getCategories();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={{ marginTop: 10 }}>
+        <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+      </View>
+
+      <TouchableOpacity
+        style={[styles.stocksBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() => router.push('/(app)/inventory/stocks')}
+      >
+        <Ionicons name="cube-outline" size={18} color={colors.primary} />
+        <Text style={[styles.stocksBtnText, { color: colors.primary }]}>Recipe Stocks</Text>
+      </TouchableOpacity>
 
       {categories.length > 0 && (
         <View style={styles.categoryRow}>
@@ -79,14 +86,12 @@ export default function InventoryScreen() {
         }
       />
 
-      {isAdmin() && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/(app)/inventory/new')}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/(app)/inventory/new')}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -142,5 +147,19 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '600',
     lineHeight: 30,
+  },
+  stocksBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: SPACING.sm,
+    marginVertical: SPACING.sm,
+  },
+  stocksBtnText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
   },
 });

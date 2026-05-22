@@ -6,8 +6,8 @@ export function setCurrencySymbol(s: string) {
   _currencySymbol = s;
 }
 
-export function hashPassword(password: string): string {
-  return sha256(password + 'mobile-pos-salt');
+export function hashPin(pin: string): string {
+  return sha256(pin + 'mobile-pos-salt');
 }
 
 export function generateReceiptNumber(): string {

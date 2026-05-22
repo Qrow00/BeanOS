@@ -37,6 +37,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, submitLabel =
       name: name.trim(),
       price: parseFloat(price),
       stock_quantity: parseInt(stock, 10) || 0,
+      stock_unit: initial?.stock_unit || 'pcs',
       category: category.trim() || 'General',
       barcode: barcode.trim() || null,
       image_uri: imageUri || null,

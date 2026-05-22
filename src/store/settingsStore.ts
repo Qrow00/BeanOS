@@ -4,6 +4,7 @@ import { getDatabase } from '../database/connection';
 import { setCurrencySymbol } from '../utils/helpers';
 
 export interface SettingsState {
+  storeName: string;
   currencySymbol: string;
   currencyCode: string;
   brandLogoUri: string | null;
@@ -13,6 +14,7 @@ export interface SettingsState {
   mayaCompanyName: string;
   isLoading: boolean;
   loadSettings: (db: SQLiteDatabase) => Promise<void>;
+  saveStoreName: (name: string) => Promise<void>;
   setCurrency: (symbol: string, code: string) => Promise<void>;
   saveBrandLogo: (uri: string) => Promise<void>;
   saveGcashQr: (uri: string) => Promise<void>;
@@ -22,6 +24,7 @@ export interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
+  storeName: 'BeanOS',
   currencySymbol: '₱',
   currencyCode: 'PHP',
   brandLogoUri: null,
@@ -33,6 +36,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   loadSettings: async (db: SQLiteDatabase) => {
     try {
+      const storeName = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        'store_name'
+      );
+      if (storeName?.value) {
+        set({ storeName: storeName.value });
+      }
+
       const currency = await db.getFirstAsync<{ value: string }>(
         'SELECT value FROM app_settings WHERE key = ?',
         'app_currency'
@@ -86,6 +97,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       }
     } catch {}
     set({ isLoading: false });
+  },
+
+  saveStoreName: async (name: string) => {
+    set({ storeName: name });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'store_name',
+        name
+      );
+    } catch {}
   },
 
   setCurrency: async (symbol: string, code: string) => {

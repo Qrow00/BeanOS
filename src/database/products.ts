@@ -34,19 +34,21 @@ export async function searchProducts(
   return db.getAllAsync<Product>(sql, ...params);
 }
 
-export async function createProduct(db: SQLiteDatabase, input: ProductInput): Promise<void> {
-  await db.runAsync(
-    `INSERT INTO products (item_id, name, category, price, stock_quantity, barcode, description, image_uri)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+export async function createProduct(db: SQLiteDatabase, input: ProductInput): Promise<number> {
+  const result = await db.runAsync(
+    `INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, barcode, description, image_uri)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.item_id,
     input.name,
     input.category,
     input.price,
     input.stock_quantity,
+    input.stock_unit,
     input.barcode,
     input.description,
     input.image_uri
   );
+  return result.lastInsertRowId as number;
 }
 
 export async function updateProduct(
@@ -62,6 +64,7 @@ export async function updateProduct(
   if (input.category !== undefined) { fields.push('category = ?'); values.push(input.category); }
   if (input.price !== undefined) { fields.push('price = ?'); values.push(input.price); }
   if (input.stock_quantity !== undefined) { fields.push('stock_quantity = ?'); values.push(input.stock_quantity); }
+  if (input.stock_unit !== undefined) { fields.push('stock_unit = ?'); values.push(input.stock_unit); }
   if (input.barcode !== undefined) { fields.push('barcode = ?'); values.push(input.barcode); }
   if (input.description !== undefined) { fields.push('description = ?'); values.push(input.description); }
   if (input.image_uri !== undefined) { fields.push('image_uri = ?'); values.push(input.image_uri); }

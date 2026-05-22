@@ -1,4 +1,4 @@
-import { File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as XLSX from 'xlsx';
@@ -24,18 +24,16 @@ export async function exportToExcel(db: SQLiteDatabase): Promise<string> {
   const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 
   const fileName = `Inventory_${new Date().toISOString().split('T')[0]}.xlsx`;
-  const file = new File(Paths.document, fileName);
-  file.create({ overwrite: true });
-  const buffer = Uint8Array.from(atob(wbout), c => c.charCodeAt(0));
-  file.write(buffer);
+  const fileUri = FileSystem.documentDirectory + fileName;
+  await FileSystem.writeAsStringAsync(fileUri, wbout, { encoding: FileSystem.EncodingType.Base64 });
 
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
+    await Sharing.shareAsync(fileUri, {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
   }
 
-  return file.uri;
+  return fileUri;
 }
 
 export async function importFromExcel(db: SQLiteDatabase): Promise<{ added: number; updated: number }> {
@@ -51,8 +49,9 @@ export async function importFromExcel(db: SQLiteDatabase): Promise<{ added: numb
 
   if (result.canceled) return { added: 0, updated: 0 };
 
-  const file = new File(result.assets[0].uri);
-  const content = await file.base64();
+  const content = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
   const wb = XLSX.read(content, { type: 'base64' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws);
@@ -73,6 +72,7 @@ export async function importFromExcel(db: SQLiteDatabase): Promise<{ added: numb
       category: String(row['Category'] || row['category'] || 'General'),
       price: parseFloat(row['Price'] || row['price'] || '0'),
       stock_quantity: parseInt(row['Stock Quantity'] || row['stock_quantity'] || '0', 10),
+      stock_unit: row['Stock Unit'] || row['stock_unit'] || 'pcs',
       barcode: row['Barcode'] || row['barcode'] || null,
       description: row['Description'] || row['description'] || null,
       image_uri: null,

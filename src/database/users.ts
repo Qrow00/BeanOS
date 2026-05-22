@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { User, UserInput } from '../types/database';
-import { hashPassword } from '../utils/helpers';
+import { hashPin } from '../utils/helpers';
 
 export async function getAllUsers(db: SQLiteDatabase): Promise<User[]> {
   return db.getAllAsync<User>('SELECT * FROM users ORDER BY username');
@@ -15,11 +15,11 @@ export async function getUserByUsername(db: SQLiteDatabase, username: string): P
 }
 
 export async function createUser(db: SQLiteDatabase, input: UserInput): Promise<void> {
-  const password_hash = hashPassword(input.password_hash);
+  const pin_hash = hashPin(input.pin_hash);
   await db.runAsync(
-    'INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, ?, ?)',
+    'INSERT INTO users (username, pin_hash, role, display_name) VALUES (?, ?, ?, ?)',
     input.username,
-    password_hash,
+    pin_hash,
     input.role,
     input.display_name
   );
@@ -34,9 +34,9 @@ export async function updateUser(
   const values: any[] = [];
 
   if (input.username !== undefined) { fields.push('username = ?'); values.push(input.username); }
-  if (input.password_hash !== undefined) {
-    fields.push('password_hash = ?');
-    values.push(hashPassword(input.password_hash));
+  if (input.pin_hash !== undefined) {
+    fields.push('pin_hash = ?');
+    values.push(hashPin(input.pin_hash));
   }
   if (input.role !== undefined) { fields.push('role = ?'); values.push(input.role); }
   if (input.display_name !== undefined) { fields.push('display_name = ?'); values.push(input.display_name); }
@@ -54,11 +54,11 @@ export async function deleteUser(db: SQLiteDatabase, id: number): Promise<void> 
 
 export async function authenticateUser(
   db: SQLiteDatabase,
-  username: string,
-  password: string
+  userId: number,
+  pin: string
 ): Promise<User | null> {
-  const user = await getUserByUsername(db, username);
+  const user = await getUserById(db, userId);
   if (!user) return null;
-  const hash = hashPassword(password);
-  return hash === user.password_hash ? user : null;
+  const hash = hashPin(pin);
+  return hash === user.pin_hash ? user : null;
 }

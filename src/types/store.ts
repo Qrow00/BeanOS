@@ -5,7 +5,7 @@ export interface AuthState {
   user: User | null;
   isLoading: boolean;
   error: string | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (userId: number, pin: string) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
 }
@@ -50,7 +50,7 @@ export interface ProductState {
   searchQuery: string;
   selectedCategory: string | null;
   fetchProducts: () => Promise<void>;
-  addProduct: (product: import('../types/database').ProductInput) => Promise<void>;
+  addProduct: (product: import('../types/database').ProductInput) => Promise<number>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
   forceDeleteProduct: (id: number) => Promise<number>;

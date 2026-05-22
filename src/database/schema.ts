@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { hashPassword } from '../utils/helpers';
+import { hashPin } from '../utils/helpers';
 
 export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync(`
@@ -9,7 +9,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
+      pin_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('admin', 'user')),
       display_name TEXT NOT NULL DEFAULT '',
       created_at TEXT DEFAULT (datetime('now')),
@@ -26,6 +26,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       barcode TEXT,
       description TEXT,
       image_uri TEXT,
+      stock_unit TEXT NOT NULL DEFAULT 'pcs',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -99,7 +100,30 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+    CREATE TABLE IF NOT EXISTS product_recipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      ingredient_id INTEGER NOT NULL,
+      quantity REAL NOT NULL CHECK(quantity > 0),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (ingredient_id) REFERENCES products(id),
+      UNIQUE(product_id, ingredient_id)
+    );
   `);
+
+  const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(users)');
+  if (cols.some(c => c.name === 'password_hash')) {
+    await db.execAsync('ALTER TABLE users RENAME COLUMN password_hash TO pin_hash');
+  }
+
+  const prodCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(products)');
+  if (!prodCols.some(c => c.name === 'stock_unit')) {
+    await db.execAsync("ALTER TABLE products ADD COLUMN stock_unit TEXT NOT NULL DEFAULT 'pcs'");
+  }
+
+  await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('0000'), 'admin');
+  await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('1234'), 'user');
 
   const existingAdmin = await db.getFirstAsync<{ id: number }>(
     'SELECT id FROM users WHERE username = ?',
@@ -107,21 +131,20 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   );
 
   if (!existingAdmin) {
-    const defaultHash = hashPassword('admin123');
     await db.runAsync(
-      'INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, ?, ?)',
+      'INSERT INTO users (username, pin_hash, role, display_name) VALUES (?, ?, ?, ?)',
       'admin',
-      defaultHash,
+      hashPin('0000'),
       'admin',
-      'Administrator'
+      'Admin'
     );
 
     await db.runAsync(
-      'INSERT INTO users (username, password_hash, role, display_name) VALUES (?, ?, ?, ?)',
+      'INSERT INTO users (username, pin_hash, role, display_name) VALUES (?, ?, ?, ?)',
       'user',
-      hashPassword('user123'),
+      hashPin('1234'),
       'user',
-      'Staff User'
+      'Cashier'
     );
 
     await db.runAsync(

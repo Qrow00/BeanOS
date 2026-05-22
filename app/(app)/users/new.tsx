@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SPACING } from '../../../src/utils/constants';
+import { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Input from '../../../src/components/ui/Input';
@@ -9,34 +10,73 @@ import Button from '../../../src/components/ui/Button';
 
 export default function NewUserScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeStore(s => s.colors);
-  const { addUser, isLoading } = useUserStore();
+  const { addUser, updateUser, fetchUsers, isLoading } = useUserStore();
+  const isEditing = !!params.id;
 
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<'user' | 'admin'>('user');
 
-  const handleSubmit = async () => {
-    if (!username.trim() || !password.trim()) return;
-    await addUser({
-      username: username.trim(),
-      password_hash: password,
-      role,
-      display_name: displayName.trim() || username.trim(),
+  useEffect(() => {
+    if (!params.id) return;
+    fetchUsers().then(() => {
+      const user = useUserStore.getState().users.find(u => String(u.id) === params.id);
+      if (user) {
+        setUsername(user.username);
+        setDisplayName(user.display_name);
+        setRole(user.role as 'user' | 'admin');
+      }
     });
+  }, [params.id]);
+
+  const handleSubmit = async () => {
+    if (!username.trim()) return;
+    if (!isEditing && pin.length !== 4) return;
+
+    if (isEditing && params.id) {
+      await updateUser(Number(params.id), {
+        username: username.trim(),
+        role,
+        display_name: displayName.trim() || username.trim(),
+        pin_hash: pin || undefined,
+      });
+    } else {
+      await addUser({
+        username: username.trim(),
+        pin_hash: pin,
+        role,
+        display_name: displayName.trim() || username.trim(),
+      });
+    }
     router.back();
   };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>{isEditing ? 'Edit User' : 'New User'}</Text>
+        <View style={{ width: 24 }} />
+      </View>
       <Input label="Username" value={username} onChangeText={setUsername} placeholder="Enter username" autoCapitalize="none" />
-      <Input label="Password" value={password} onChangeText={setPassword} placeholder="Enter password" secureTextEntry />
+      <Input
+        label={isEditing ? "PIN (leave blank to keep current)" : "PIN (4 digits)"}
+        value={pin}
+        onChangeText={(t) => setPin(t.replace(/\D/g, '').slice(0, 4))}
+        placeholder={isEditing ? "Leave blank to keep" : "Enter 4-digit PIN"}
+        secureTextEntry
+        keyboardType="number-pad"
+      />
       <Input label="Display Name" value={displayName} onChangeText={setDisplayName} placeholder="Optional display name" />
 
       <View style={styles.roleRow}>
         <Button
-          title="User"
+          title="Cashier"
           variant={role === 'user' ? 'primary' : 'outline'}
           onPress={() => setRole('user')}
           style={styles.roleBtn}
@@ -50,10 +90,10 @@ export default function NewUserScreen() {
       </View>
 
       <Button
-        title="Add User"
+        title={isEditing ? "Save Changes" : "Add User"}
         onPress={handleSubmit}
         loading={isLoading}
-        disabled={!username.trim() || !password.trim()}
+        disabled={!username.trim() || (!isEditing && pin.length !== 4)}
         style={styles.submitBtn}
       />
     </ScrollView>
@@ -75,5 +115,17 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
 });

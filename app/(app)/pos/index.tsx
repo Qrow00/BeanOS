@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
 import { useCartStore } from '../../../src/store/cartStore';
@@ -24,7 +23,6 @@ import type { CartItem } from '../../../src/types/store';
 
 export default function POSScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
   const { products, fetchProducts, searchQuery, setSearchQuery, getFilteredProducts, getCategories, selectedCategory, setSelectedCategory } = useProductStore();
   const { items, manualDiscount, addItem, removeItem, updateQuantity, clearCart, setManualDiscount, clearManualDiscount, getSubtotal, getDiscount, getTotal, getItemCount, paymentMethod, setPaymentMethod, holdCart, getHeldTransactions, restoreCart, deleteHeldTransaction } = useCartStore();
@@ -59,9 +57,11 @@ export default function POSScreen() {
   } | null>(null);
 
   const [quantityTarget, setQuantityTarget] = useState<{ productId: number; current: number; max: number } | null>(null);
+  const [todayTotal, setTodayTotal] = useState(0);
 
   useEffect(() => {
     fetchProducts();
+    loadTodayTotal();
   }, []);
 
   const refreshHolds = async () => {
@@ -72,6 +72,15 @@ export default function POSScreen() {
     } catch {} finally {
       setHoldsLoading(false);
     }
+  };
+
+  const loadTodayTotal = async () => {
+    try {
+      const db = await getDatabase();
+      const sales = await salesRepo.getTodaySales(db);
+      const total = sales.reduce((sum, s) => sum + s.total, 0);
+      setTodayTotal(total);
+    } catch {}
   };
 
   const handleHoldSave = async () => {
@@ -213,7 +222,7 @@ export default function POSScreen() {
 
   if (showCart) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.cartHeader}>
           <TouchableOpacity onPress={() => setShowCart(false)}>
             <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
@@ -426,15 +435,11 @@ export default function POSScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.posHeader}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>
-          </TouchableOpacity>
-
+          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
         </View>
-        <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
             onPress={() => setShowCart(true)}
@@ -471,6 +476,11 @@ export default function POSScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <View style={styles.todayRow}>
+        <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
+        <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+      </View>
 
       <RecentItems onAddToCart={addItem} />
 
@@ -549,6 +559,22 @@ const styles = StyleSheet.create({
   },
   posTitle: {
     fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  todayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  todayLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  todayValue: {
+    fontSize: FONT_SIZES.sm,
     fontWeight: '700',
   },
   backBtn: {

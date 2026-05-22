@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
 import { useThemeStore } from '../../src/store/themeStore';
@@ -9,7 +8,6 @@ import { getDatabase } from '../../src/database/connection';
 
 export default function LoyaltyCardScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
   const [loyaltyUri, setLoyaltyUri] = useState<string | null>(null);
   const [qrUri, setQrUri] = useState<string | null>(null);
@@ -62,7 +60,7 @@ export default function LoyaltyCardScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>
@@ -143,15 +141,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     overflow: 'hidden',
-    minHeight: 120,
+    minHeight: 240,
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qrImage: {
-    width: 120,
-    height: 120,
+    width: 240,
+    height: 240,
   },
   qrPlaceholder: {
     alignItems: 'center',

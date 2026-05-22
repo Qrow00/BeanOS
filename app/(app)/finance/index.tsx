@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -14,11 +13,16 @@ type TabType = 'income' | 'expense';
 
 export default function FinanceScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
   const { isAdmin } = useAuthStore();
   const { transactions, fetchTransactions, deleteTransaction, isLoading } = useTransactionStore();
   const [tab, setTab] = useState<TabType>('income');
+
+  useEffect(() => {
+    if (!isAdmin()) router.replace('/(app)/pos');
+  }, []);
+
+
 
   useEffect(() => {
     fetchTransactions();
@@ -31,7 +35,7 @@ export default function FinanceScreen() {
   const filtered = transactions.filter(t => t.type === tab);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>

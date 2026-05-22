@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
@@ -35,6 +36,13 @@ export default function NewTransactionScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>New Transaction</Text>
+        <View style={{ width: 24 }} />
+      </View>
       <View style={styles.typeRow}>
         <TouchableOpacity
           style={[styles.typeBtn, { borderColor: colors.border }, type === 'income' && { backgroundColor: '#059669', borderColor: '#059669' }]}
@@ -115,5 +123,17 @@ const styles = StyleSheet.create({
   submitBtn: {
     marginTop: SPACING.sm,
     marginBottom: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
 });

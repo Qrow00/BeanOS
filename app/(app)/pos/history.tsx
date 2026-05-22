@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { getDatabase } from '../../../src/database/connection';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -12,6 +14,7 @@ import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 type DateFilter = 'all' | 'today' | 'week' | 'month';
 
 export default function SalesHistoryScreen() {
+  const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const [sales, setSales] = useState<(Sale & { items?: SaleItem[] })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +76,7 @@ export default function SalesHistoryScreen() {
           barcode: null,
           description: null,
           image_uri: null,
+          stock_unit: 'pcs',
           created_at: '',
           updated_at: '',
         },
@@ -109,6 +113,13 @@ export default function SalesHistoryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
+        <View style={{ width: 24 }} />
+      </View>
       <View style={styles.filterRow}>
         {filters.map(f => (
           <TouchableOpacity
@@ -215,5 +226,17 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FONT_SIZES.md,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
   },
 });

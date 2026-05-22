@@ -21,7 +21,6 @@ const paymentOptions: { key: PaymentMethod; label: string; icon: string }[] = [
   { key: 'card', label: 'Card', icon: '💳' },
   { key: 'gcash', label: 'GCash', icon: '📱' },
   { key: 'maya', label: 'Maya', icon: '📱' },
-  { key: 'bank_transfer', label: 'Bank Transfer', icon: '🏦' },
 ];
 
 export default function PaymentMethodModal({

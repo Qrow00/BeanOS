@@ -17,15 +17,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  login: async (username: string, password: string) => {
+  login: async (userId: number, pin: string) => {
     set({ isLoading: true, error: null });
     try {
       const db = await getDb();
-      const user = await usersRepo.authenticateUser(db, username, password);
+      const user = await usersRepo.authenticateUser(db, userId, pin);
       if (user) {
         set({ isAuthenticated: true, user, isLoading: false, error: null });
       } else {
-        set({ isLoading: false, error: 'Invalid username or password' });
+        set({ isLoading: false, error: 'Invalid PIN' });
       }
     } catch (err) {
       set({ isLoading: false, error: 'Login failed. Please try again.' });

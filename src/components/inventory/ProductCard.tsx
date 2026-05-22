@@ -12,6 +12,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, onPress }: ProductCardProps) {
   const colors = useThemeStore(s => s.colors);
   const outOfStock = product.stock_quantity <= 0;
+  const isDrink = product.category.toLowerCase() === 'drink';
 
   return (
     <TouchableOpacity
@@ -24,6 +25,7 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
           {outOfStock && <Text style={[styles.outBadge, { color: colors.danger }]}>Out</Text>}
+          {isDrink && <Text style={[styles.recipeBadge, { color: colors.primary }]}>📋</Text>}
         </View>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {product.category} • {product.item_id}
@@ -69,6 +71,9 @@ const styles = StyleSheet.create({
   outBadge: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  recipeBadge: {
+    fontSize: 12,
   },
   meta: {
     fontSize: FONT_SIZES.xs,

@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   username: string;
-  password_hash: string;
+  pin_hash: string;
   role: 'admin' | 'user';
   display_name: string;
   created_at: string;
@@ -15,6 +15,7 @@ export interface Product {
   category: string;
   price: number;
   stock_quantity: number;
+  stock_unit: string;
   barcode: string | null;
   description: string | null;
   image_uri: string | null;
@@ -86,7 +87,19 @@ export interface Transaction {
   created_at: string;
 }
 
-export type PaymentMethod = 'cash' | 'card' | 'gcash' | 'maya' | 'bank_transfer';
+export interface RecipeItem {
+  id: number;
+  product_id: number;
+  ingredient_id: number;
+  quantity: number;
+}
+
+export interface RecipeItemWithName extends RecipeItem {
+  ingredient_name: string;
+  ingredient_category: string;
+}
+
+export type PaymentMethod = 'cash' | 'card' | 'gcash' | 'maya';
 export type ViewMode = 'list' | 'grid';
 
 export type ProductInput = Omit<Product, 'id' | 'created_at' | 'updated_at'>;
