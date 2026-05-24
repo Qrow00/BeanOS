@@ -62,8 +62,8 @@ export default function LoyaltyCardScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>
+        <TouchableOpacity onPress={() => router.replace('/(app)/settings')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Settings</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Loyalty Card</Text>
         <View style={{ width: 80 }} />
@@ -122,7 +122,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: 0,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
   },
   backBtn: {
     fontSize: FONT_SIZES.md,

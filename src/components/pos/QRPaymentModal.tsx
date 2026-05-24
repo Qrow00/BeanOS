@@ -36,8 +36,21 @@ export default function QRPaymentModal({
   useEffect(() => {
     if (!ExpoBrightness) return;
     let cancelled = false;
-    (async () => {
-      if (visible) {
+
+    const restore = async (val: number) => {
+      try {
+        if (ExpoBrightness.restoreSystemBrightnessAsync) {
+          await ExpoBrightness.restoreSystemBrightnessAsync();
+        } else {
+          await ExpoBrightness.setBrightnessAsync(val);
+        }
+      } catch (e) {
+        console.warn('Brightness restore failed:', e);
+      }
+    };
+
+    if (visible) {
+      (async () => {
         try {
           const current = await ExpoBrightness.getBrightnessAsync();
           if (!cancelled) {
@@ -47,18 +60,19 @@ export default function QRPaymentModal({
         } catch (e) {
           console.warn('Brightness get/set failed:', e);
         }
-      } else {
-        if (prevBrightness.current != null) {
-          try {
-            await ExpoBrightness.setBrightnessAsync(prevBrightness.current);
-          } catch (e) {
-            console.warn('Brightness restore failed:', e);
-          }
-          prevBrightness.current = null;
-        }
+      })();
+    } else if (prevBrightness.current != null) {
+      restore(prevBrightness.current);
+      prevBrightness.current = null;
+    }
+
+    return () => {
+      cancelled = true;
+      if (prevBrightness.current != null) {
+        restore(prevBrightness.current);
+        prevBrightness.current = null;
       }
-    })();
-    return () => { cancelled = true; };
+    };
   }, [visible]);
 
   const label = type === 'gcash' ? 'GCash' : 'Maya';

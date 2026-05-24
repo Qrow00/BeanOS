@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SPACING } from '../../../src/utils/constants';
+import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useCouponStore } from '../../../src/store/couponStore';
 import Input from '../../../src/components/ui/Input';
@@ -35,6 +35,14 @@ export default function NewCouponScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Coupons</Text>
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>New Coupon</Text>
+        <View style={{ width: 80 }} />
+      </View>
+      <View style={{ paddingHorizontal: SPACING.md }}>
       <Input label="Coupon Code" value={code} onChangeText={setCode} placeholder="e.g. SAVE20" autoCapitalize="characters" />
       <Input label="Discount Value" value={discountValue} onChangeText={setDiscountValue} placeholder="e.g. 20" keyboardType="decimal-pad" />
       <Input label="Min Purchase (optional)" value={minPurchase} onChangeText={setMinPurchase} placeholder="0.00" keyboardType="decimal-pad" />
@@ -63,14 +71,30 @@ export default function NewCouponScreen() {
         disabled={!code.trim() || !discountValue}
         style={styles.submitBtn}
       />
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  title: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
-    padding: SPACING.md,
   },
   typeRow: {
     flexDirection: 'row',

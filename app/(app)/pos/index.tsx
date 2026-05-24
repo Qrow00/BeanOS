@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, TextInput, useWindowDimensions } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
@@ -18,6 +18,7 @@ import RecentItems from '../../../src/components/pos/RecentItems';
 import QuantityInputModal from '../../../src/components/pos/QuantityInputModal';
 import PaymentMethodModal from '../../../src/components/pos/PaymentMethodModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
+import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import type { ViewMode, PaymentMethod, HoldTransaction } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 
@@ -58,6 +59,8 @@ export default function POSScreen() {
 
   const [quantityTarget, setQuantityTarget] = useState<{ productId: number; current: number; max: number } | null>(null);
   const [todayTotal, setTodayTotal] = useState(0);
+  const [pendingRestoreHold, setPendingRestoreHold] = useState<HoldTransaction | null>(null);
+  const [pendingDeleteHold, setPendingDeleteHold] = useState<HoldTransaction | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -91,24 +94,28 @@ export default function POSScreen() {
   };
 
   const handleHoldRestore = (hold: HoldTransaction) => {
-    Alert.alert('Restore Cart', `Restore "${hold.label}"?\nCurrent cart will be replaced.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Restore',
-        onPress: () => {
-          restoreCart(hold);
-          deleteHeldTransaction(hold.id);
-          setCartTab('cart');
-        },
-      },
-    ]);
+    setPendingRestoreHold(hold);
   };
 
   const handleHoldDelete = (hold: HoldTransaction) => {
-    Alert.alert('Delete', `Delete "${hold.label}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteHeldTransaction(hold.id).then(refreshHolds) },
-    ]);
+    setPendingDeleteHold(hold);
+  };
+
+  const confirmRestore = () => {
+    const hold = pendingRestoreHold;
+    if (!hold) return;
+    restoreCart(hold);
+    deleteHeldTransaction(hold.id);
+    setCartTab('cart');
+    setPendingRestoreHold(null);
+  };
+
+  const confirmDelete = async () => {
+    const hold = pendingDeleteHold;
+    if (!hold) return;
+    await deleteHeldTransaction(hold.id);
+    refreshHolds();
+    setPendingDeleteHold(null);
   };
 
   const filteredProducts = getFilteredProducts();
@@ -341,62 +348,6 @@ export default function POSScreen() {
               </View>
             )}
 
-            <QuantityInputModal
-              visible={showQuantityModal}
-              currentQuantity={quantityTarget?.current ?? 1}
-              maxQuantity={quantityTarget?.max ?? 999}
-              onApply={handleQuantityApply}
-              onClose={() => setShowQuantityModal(false)}
-            />
-
-            <PaymentMethodModal
-              visible={showPaymentModal}
-              total={total}
-              selectedMethod={paymentMethod}
-              onSelect={setPaymentMethod}
-              onConfirm={handleCheckout}
-              onClose={() => setShowPaymentModal(false)}
-            />
-
-            {showDiscountModal && (
-              <View style={styles.discountOverlay}>
-                <View style={[styles.discountModal, { backgroundColor: colors.surface }]}>
-                  <Text style={[styles.discountTitle, { color: colors.text }]}>Apply Discount</Text>
-
-                  <View style={styles.typeToggle}>
-                    <TouchableOpacity
-                      style={[styles.typeBtn, discountType === 'percentage' && { backgroundColor: colors.primary }]}
-                      onPress={() => setDiscountType('percentage')}
-                    >
-                      <Text style={[styles.typeBtnText, { color: discountType === 'percentage' ? '#fff' : colors.text }]}>%</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.typeBtn, discountType === 'fixed' && { backgroundColor: colors.primary }]}
-                      onPress={() => setDiscountType('fixed')}
-                    >
-                      <Text style={[styles.typeBtnText, { color: discountType === 'fixed' ? '#fff' : colors.text }]}>₱</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <TextInput
-                    style={[styles.discountInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    keyboardType="decimal-pad"
-                    placeholder={discountType === 'percentage' ? 'Enter percentage (1-100)' : 'Enter amount'}
-                    placeholderTextColor={colors.textSecondary}
-                    value={discountInput}
-                    onChangeText={setDiscountInput}
-                  />
-
-                  <TouchableOpacity style={[styles.applyBtn, { backgroundColor: colors.primary }]} onPress={handleApplyDiscount}>
-                    <Text style={styles.applyBtnText}>Apply</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
-                    <Text style={[styles.closeDiscount, { color: colors.primary }]}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
           </>
         ) : (
           <View style={styles.heldContainer}>
@@ -453,6 +404,82 @@ export default function POSScreen() {
                 </View>
               }
             />
+          </View>
+        )}
+
+        <QuantityInputModal
+          visible={showQuantityModal}
+          currentQuantity={quantityTarget?.current ?? 1}
+          maxQuantity={quantityTarget?.max ?? 999}
+          onApply={handleQuantityApply}
+          onClose={() => setShowQuantityModal(false)}
+        />
+
+        <PaymentMethodModal
+          visible={showPaymentModal}
+          total={total}
+          selectedMethod={paymentMethod}
+          onSelect={setPaymentMethod}
+          onConfirm={handleCheckout}
+          onClose={() => setShowPaymentModal(false)}
+        />
+
+        <ConfirmModal
+          visible={pendingRestoreHold !== null}
+          title="Restore Cart"
+          message={`Restore "${pendingRestoreHold?.label}"?\nCurrent cart will be replaced.`}
+          confirmLabel="Restore"
+          onConfirm={confirmRestore}
+          onCancel={() => setPendingRestoreHold(null)}
+        />
+
+        <ConfirmModal
+          visible={pendingDeleteHold !== null}
+          title="Delete"
+          message={`Delete "${pendingDeleteHold?.label}"?`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDeleteHold(null)}
+        />
+
+        {showDiscountModal && (
+          <View style={styles.discountOverlay}>
+            <View style={[styles.discountModal, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.discountTitle, { color: colors.text }]}>Apply Discount</Text>
+
+              <View style={styles.typeToggle}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, discountType === 'percentage' && { backgroundColor: colors.primary }]}
+                  onPress={() => setDiscountType('percentage')}
+                >
+                  <Text style={[styles.typeBtnText, { color: discountType === 'percentage' ? '#fff' : colors.text }]}>%</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, discountType === 'fixed' && { backgroundColor: colors.primary }]}
+                  onPress={() => setDiscountType('fixed')}
+                >
+                  <Text style={[styles.typeBtnText, { color: discountType === 'fixed' ? '#fff' : colors.text }]}>₱</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[styles.discountInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                keyboardType="decimal-pad"
+                placeholder={discountType === 'percentage' ? 'Enter percentage (1-100)' : 'Enter amount'}
+                placeholderTextColor={colors.textSecondary}
+                value={discountInput}
+                onChangeText={setDiscountInput}
+              />
+
+              <TouchableOpacity style={[styles.applyBtn, { backgroundColor: colors.primary }]} onPress={handleApplyDiscount}>
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
+                <Text style={[styles.closeDiscount, { color: colors.primary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -555,6 +582,12 @@ export default function POSScreen() {
         />
       )}
 
+      <TouchableOpacity
+        style={[styles.loyaltyFab, { backgroundColor: colors.primary }]}
+        onPress={() => router.push('/(app)/loyalty')}
+      >
+        <Text style={styles.loyaltyFabText}>💳</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -877,5 +910,23 @@ const styles = StyleSheet.create({
   closeDiscount: {
     fontWeight: '600',
     fontSize: FONT_SIZES.md,
+  },
+  loyaltyFab: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  loyaltyFabText: {
+    fontSize: 24,
   },
 });

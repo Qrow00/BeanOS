@@ -1,6 +1,5 @@
 import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity, TextInput, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
 import { useThemeStore } from '../../src/store/themeStore';
@@ -32,11 +31,11 @@ export default function PaymentQRScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        <TouchableOpacity onPress={() => router.replace('/(app)/settings')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Settings</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Payment QR Codes</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 80 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -109,6 +108,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   content: {
     padding: SPACING.md,

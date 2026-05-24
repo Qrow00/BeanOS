@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useUserStore } from '../../../src/store/userStore';
@@ -58,10 +57,10 @@ export default function NewUserScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Users</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>{isEditing ? 'Edit User' : 'New User'}</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 80 }} />
       </View>
       <Input label="Username" value={username} onChangeText={setUsername} placeholder="Enter username" autoCapitalize="none" />
       <Input
@@ -127,5 +126,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
 });

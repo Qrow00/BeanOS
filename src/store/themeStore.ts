@@ -61,12 +61,17 @@ export interface ThemeState {
   isLoading: boolean;
   loadThemeFromDb: (db: SQLiteDatabase) => Promise<void>;
   toggleTheme: () => Promise<void>;
+  themeOverlay: { originX: number; originY: number; overlayBg: string; newBg: string } | null;
+  setThemeOverlay: (overlay: { originX: number; originY: number; overlayBg: string; newBg: string } | null) => void;
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
   colors: getSystemMode() === 'dark' ? darkTheme : lightTheme,
   mode: getSystemMode(),
   isLoading: true,
+  themeOverlay: null,
+
+  setThemeOverlay: (overlay) => set({ themeOverlay: overlay }),
 
   loadThemeFromDb: async (db: SQLiteDatabase) => {
     try {

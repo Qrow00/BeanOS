@@ -1,7 +1,5 @@
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
 import { useThemeStore } from '../../src/store/themeStore';
 import Logo from '../../src/components/ui/Logo';
@@ -14,11 +12,11 @@ export default function BrandLogoScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        <TouchableOpacity onPress={() => router.replace('/(app)/settings')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Settings</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Brand Logo</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 80 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -55,6 +53,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   content: {
     padding: SPACING.md,

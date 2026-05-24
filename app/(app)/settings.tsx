@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
 import { useProductStore } from '../../src/store/productStore';
@@ -10,7 +11,6 @@ import { getDatabase } from '../../src/database/connection';
 import { exportToExcel, importFromExcel } from '../../src/services/importExport';
 import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
-import ThemeExpandOverlay from '../../src/components/ui/ThemeExpandOverlay';
 
 const currencies = [
   { symbol: '₱', code: 'PHP', label: 'Philippine Peso' },
@@ -22,25 +22,22 @@ const currencies = [
 
 const STAFF_NAV_LINKS = [
   { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
-  { title: 'Loyalty Card', icon: '💳', route: '/(app)/loyalty' },
 ] as const;
 
 const ADMIN_NAV_LINKS = [
   { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
-  { title: 'Loyalty Card', icon: '💳', route: '/(app)/loyalty' },
 ] as const;
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { user, isAdmin, logout } = useAuthStore();
   const { fetchProducts } = useProductStore();
-  const { colors, mode, toggleTheme } = useThemeStore();
+  const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
   const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
-  const [themeOverlay, setThemeOverlay] = useState<{ originX: number; originY: number; targetBg: string } | null>(null);
-  const isAnimatingRef = useRef(false);
   const switchRef = useRef<View>(null);
 
   const handleExport = async () => {
@@ -73,18 +70,12 @@ export default function SettingsScreen() {
   };
 
   const handleThemeToggle = () => {
-    if (isAnimatingRef.current) return;
-    switchRef.current?.measureInWindow((x, y, width, height) => {
-      isAnimatingRef.current = true;
-      const targetBg = mode === 'dark' ? lightTheme.background : darkTheme.background;
-      setThemeOverlay({ originX: x + width / 2, originY: y + height / 2, targetBg });
+    switchRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      const oldBg = mode === 'dark' ? darkTheme.background : lightTheme.background;
+      const newBg = mode === 'dark' ? lightTheme.background : darkTheme.background;
+      toggleTheme();
+      setThemeOverlay({ originX: pageX + width / 2, originY: pageY + height / 2, overlayBg: oldBg, newBg });
     });
-  };
-
-  const handleThemeTransitionComplete = () => {
-    toggleTheme();
-    setThemeOverlay(null);
-    isAnimatingRef.current = false;
   };
 
   return (
@@ -186,7 +177,7 @@ export default function SettingsScreen() {
           <Button title="Change Currency" onPress={() => setShowCurrencyModal(true)} variant="outline" />
         </Card>
 
-        <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)}>
+        <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
           <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
@@ -255,15 +246,6 @@ export default function SettingsScreen() {
           <Text style={styles.logoutBtnText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {themeOverlay && (
-        <ThemeExpandOverlay
-          originX={themeOverlay.originX}
-          originY={themeOverlay.originY}
-          targetBg={themeOverlay.targetBg}
-          onComplete={handleThemeTransitionComplete}
-        />
-      )}
     </View>
   );
 }

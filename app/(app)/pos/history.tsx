@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { getDatabase } from '../../../src/database/connection';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -114,11 +113,11 @@ export default function SalesHistoryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={colors.primary} />
+        <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 80 }} />
       </View>
       <View style={styles.filterRow}>
         {filters.map(f => (
@@ -238,5 +237,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
 });

@@ -175,7 +175,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
         </TouchableOpacity>
       </View>
 
-      <Modal visible={showCategoryModal} transparent animationType="fade" onRequestClose={() => setShowCategoryModal(false)}>
+      <Modal visible={showCategoryModal} transparent animationType="fade" onRequestClose={() => setShowCategoryModal(false)} statusBarTranslucent>
         <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowCategoryModal(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Select Category</Text>
@@ -192,7 +192,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
           </View>
         </TouchableOpacity>
       </Modal>
-      <Modal visible={showIngredientUnitModal} transparent animationType="fade" onRequestClose={() => setShowIngredientUnitModal(false)}>
+      <Modal visible={showIngredientUnitModal} transparent animationType="fade" onRequestClose={() => setShowIngredientUnitModal(false)} statusBarTranslucent>
         <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowIngredientUnitModal(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Select Unit</Text>
@@ -211,7 +211,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={showUnitModal} transparent animationType="fade" onRequestClose={() => setShowUnitModal(false)}>
+      <Modal visible={showUnitModal} transparent animationType="fade" onRequestClose={() => setShowUnitModal(false)} statusBarTranslucent>
         <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowUnitModal(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Select Stock Unit</Text>
@@ -230,7 +230,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={showAddIngredient} transparent animationType="fade" onRequestClose={() => setShowAddIngredient(false)}>
+      <Modal visible={showAddIngredient} transparent animationType="fade" onRequestClose={() => setShowAddIngredient(false)} statusBarTranslucent>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowAddIngredient(false)}>
             <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }} keyboardShouldPersistTaps="handled">

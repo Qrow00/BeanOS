@@ -56,8 +56,8 @@ export default function FinanceScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.replace('/(app)')}>
-          <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>
+        <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Finance</Text>
         <View style={{ width: 80 }} />

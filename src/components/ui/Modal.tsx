@@ -14,7 +14,7 @@ export default function Modal({ visible, title, children, onClose, modalStyle }:
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <RNModal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+    <RNModal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
         <View style={[styles.modal, { backgroundColor: colors.surface }, modalStyle]}>
           <View style={styles.header}>

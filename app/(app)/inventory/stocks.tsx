@@ -1,12 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet, Alert } from 'react-native';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, Animated, PanResponder } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { getDatabase } from '../../../src/database/connection';
 import { getRecipeIngredientsWithStock } from '../../../src/database/stocks';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import type { ProductWithRecipe } from '../../../src/database/stocks';
 
 
@@ -18,7 +18,10 @@ export default function RecipeStocksScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithRecipe | null>(null);
   const [addQty, setAddQty] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);  const fetchIngredients = async () => {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ProductWithRecipe | null>(null);
+
+  const fetchIngredients = async () => {
     setLoading(true);
     try {
       const db = await getDatabase();
@@ -63,38 +66,69 @@ export default function RecipeStocksScreen() {
   };
 
   const handleDelete = (product: ProductWithRecipe) => {
-    Alert.alert(
-      'Delete Ingredient',
-      `Delete "${product.name}" from recipe stocks? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-            onPress: async () => {
-              try {
-                const db = await getDatabase();
-                await db.runAsync('DELETE FROM product_recipes WHERE ingredient_id = ?', product.id);
-                await db.runAsync('DELETE FROM products WHERE id = ?', product.id);
-                await fetchIngredients();
-              } catch (e) {
-                Alert.alert('Error', 'Could not delete ingredient. It may be referenced by existing sales records.');
-                console.error('Delete error', e);
-              }
-            },
+    setPendingDelete(product);
+  };
+
+  const confirmDelete = async () => {
+    const product = pendingDelete;
+    if (!product) return;
+    try {
+      const db = await getDatabase();
+      await db.runAsync('DELETE FROM product_recipes WHERE ingredient_id = ?', product.id);
+      await db.runAsync('DELETE FROM products WHERE id = ?', product.id);
+      await fetchIngredients();
+    } catch (e) {
+      Alert.alert('Error', 'Could not delete ingredient. It may be referenced by existing sales records.');
+      console.error('Delete error', e);
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
+  const SwipeableRow = ({ item, children }: { item: ProductWithRecipe; children: React.ReactNode }) => {
+    const itemRef = useRef(item);
+    itemRef.current = item;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const deleteTranslate = translateX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [0, 80],
+      extrapolate: 'clamp',
+    });
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy),
+        onPanResponderMove: (_, g) => {
+          if (g.dx < 0) translateX.setValue(Math.max(g.dx, -80));
         },
-      ]
+        onPanResponderRelease: (_, g) => {
+          if (g.dx < -50) handleDelete(itemRef.current);
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        },
+      })
+    ).current;
+
+    return (
+      <View style={{ marginBottom: SPACING.sm }}>
+        <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+          <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+            {children}
+          </Animated.View>
+          <Animated.View style={[styles.swipeDeleteContainer, { backgroundColor: colors.danger, transform: [{ translateX: deleteTranslate }] }]}>
+            <Text style={styles.swipeDeleteText}>Delete</Text>
+          </Animated.View>
+        </View>
+      </View>
     );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/inventory')}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← Inventory</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Recipe Stocks</Text>
-        <View style={{ width: 24 }} />
+        <View style={{ width: 80 }} />
       </View>
 
       {ingredients.length === 0 && !loading && (
@@ -111,42 +145,41 @@ export default function RecipeStocksScreen() {
         contentContainerStyle={styles.list}
         refreshing={loading}
         onRefresh={fetchIngredients}
+        ListFooterComponent={
+          <Text style={[styles.swipeHint, { color: colors.textSecondary }]}>Swipe left on an item to delete</Text>
+        }
         renderItem={({ item }) => (
-          <View style={[styles.productRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={styles.productInfo}>
-              <Text style={[styles.productName, { color: colors.text }]}>{item.name}</Text>
-              <View style={styles.stockRow}>
-                <Text style={[styles.stockValue, { color: colors.textSecondary }]}>Fixed Quantity: </Text>
-                <Text style={[styles.stockValue, { color: colors.text }]}>
-                  {item.initial_stock} {item.stock_unit || 'pcs'}
-                </Text>
+          <SwipeableRow item={item}>
+            <View style={[styles.productRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={styles.productInfo}>
+                <Text style={[styles.productName, { color: colors.text }]}>{item.name}</Text>
+                <View style={styles.stockRow}>
+                  <Text style={[styles.stockLabel, { color: colors.textSecondary }]}>Fixed Quantity: </Text>
+                  <Text style={[styles.stockValue, { color: colors.text }]}>
+                    {item.initial_stock} {item.stock_unit || 'pcs'}
+                  </Text>
+                </View>
+                <View style={styles.stockRow}>
+                  <Text style={[styles.stockLabel, { color: colors.textSecondary }]}>Stock: </Text>
+                  <Text style={[styles.stockValue, { color: colors.text }]}>
+                    {item.stock_quantity} {item.stock_unit || 'pcs'}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.stockRow}>
-                <Text style={[styles.stockValue, { color: colors.textSecondary }]}>Stock: </Text>
-                <Text style={[styles.stockValue, { color: colors.text }]}>
-                  {item.stock_quantity} {item.stock_unit || 'pcs'}
-                </Text>
+              <View style={styles.actionCol}>
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => openAddStock(item)}
+                >
+                  <Text style={styles.addBtnText}>+ Add Stock</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <View style={styles.actionCol}>
-              <TouchableOpacity
-                style={[styles.addBtn, { backgroundColor: colors.primary }]}
-                onPress={() => openAddStock(item)}
-              >
-                <Text style={styles.addBtnText}>+ Add Stock</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.deleteBtn, { borderColor: colors.danger }]}
-                onPress={() => handleDelete(item)}
-              >
-                <Text style={[styles.deleteBtnText, { color: colors.danger }]}>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          </SwipeableRow>
         )}
       />
 
-      <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)}>
+      <Modal visible={showAddModal} transparent animationType="fade" onRequestClose={() => setShowAddModal(false)} statusBarTranslucent>
         <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowAddModal(false)}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>
@@ -179,6 +212,16 @@ export default function RecipeStocksScreen() {
         </TouchableOpacity>
       </Modal>
 
+      <ConfirmModal
+        visible={pendingDelete !== null}
+        title="Delete Ingredient"
+        message={`Delete "${pendingDelete?.name}" from recipe stocks? This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
         onPress={() => router.push('/(app)/inventory/new?from=stocks')}
@@ -198,11 +241,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
   },
   title: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   list: {
     paddingBottom: 100,
@@ -222,7 +270,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
   },
   productInfo: {
     flex: 1,
@@ -243,6 +290,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontWeight: '700',
   },
+  stockLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
   stockValue: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '800',
@@ -260,16 +311,24 @@ const styles = StyleSheet.create({
   actionCol: {
     gap: SPACING.xs,
   },
-  deleteBtn: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+  swipeDeleteContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 80,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteBtnText: {
-    fontWeight: '600',
+  swipeDeleteText: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: FONT_SIZES.sm,
+  },
+  swipeHint: {
+    textAlign: 'center',
+    fontSize: FONT_SIZES.sm,
+    paddingVertical: SPACING.sm,
   },
   modalOverlay: {
     flex: 1,

@@ -217,7 +217,7 @@ export default function EditProductScreen() {
         </View>
       )}
 
-      <Modal visible={showIngredientUnitModal} transparent animationType="fade" onRequestClose={() => setShowIngredientUnitModal(false)}>
+      <Modal visible={showIngredientUnitModal} transparent animationType="fade" onRequestClose={() => setShowIngredientUnitModal(false)} statusBarTranslucent>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowIngredientUnitModal(false)}>
           <View style={[styles.unitModalContent, { backgroundColor: colors.surface }]}>
             <Text style={[styles.unitModalTitle, { color: colors.text }]}>Select Unit</Text>

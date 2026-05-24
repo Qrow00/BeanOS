@@ -1,14 +1,18 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../src/store/authStore';
 import { useThemeStore } from '../../src/store/themeStore';
+import ThemeExpandOverlay from '../../src/components/ui/ThemeExpandOverlay';
 
 export default function AppLayout() {
   const { isAuthenticated, isAdmin } = useAuthStore();
   const colors = useThemeStore(s => s.colors);
+  const themeOverlay = useThemeStore(s => s.themeOverlay);
+  const setThemeOverlay = useThemeStore(s => s.setThemeOverlay);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -21,7 +25,8 @@ export default function AppLayout() {
   if (!isAuthenticated) return null;
 
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      <Tabs
       screenOptions={{
         headerShown: false,
         sceneStyle: { paddingTop: insets.top, backgroundColor: colors.background },
@@ -125,5 +130,15 @@ export default function AppLayout() {
         }}
       />
     </Tabs>
+    {themeOverlay && (
+      <ThemeExpandOverlay
+        originX={themeOverlay.originX}
+        originY={themeOverlay.originY}
+        overlayBg={themeOverlay.overlayBg}
+        newBg={themeOverlay.newBg}
+        onComplete={() => setThemeOverlay(null)}
+      />
+    )}
+    </View>
   );
 }
