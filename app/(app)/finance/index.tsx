@@ -5,39 +5,58 @@ import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useTransactionStore } from '../../../src/store/transactionStore';
+import { usePriceHistoryStore } from '../../../src/store/priceHistoryStore';
 import { formatCurrency } from '../../../src/utils/helpers';
 import FinanceSummary from '../../../src/components/finance/FinanceSummary';
 import TransactionCard from '../../../src/components/finance/TransactionCard';
+import PriceChangeCard from '../../../src/components/finance/PriceChangeCard';
 
-type TabType = 'income' | 'expense';
+type TabType = 'income' | 'expense' | 'prices';
+
+const SORT_OPTIONS = [
+  { key: 'name' as const, label: 'Name' },
+  { key: 'price' as const, label: 'Price' },
+  { key: 'quantity' as const, label: 'Qty' },
+  { key: 'date' as const, label: 'Date' },
+];
 
 export default function FinanceScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const { isAdmin } = useAuthStore();
   const { transactions, fetchTransactions, deleteTransaction, isLoading } = useTransactionStore();
+  const { fetchMovements, sortedMovements, sortBy, setSortBy, isLoading: priceLoading } = usePriceHistoryStore();
   const [tab, setTab] = useState<TabType>('income');
 
   useEffect(() => {
     if (!isAdmin()) router.replace('/(app)/pos');
   }, []);
 
-
-
   useEffect(() => {
     fetchTransactions();
   }, []);
+
+  useEffect(() => {
+    if (tab === 'prices') fetchMovements();
+  }, [tab]);
 
   const incomeTotal = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenseTotal = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netTotal = incomeTotal - expenseTotal;
 
-  const filtered = transactions.filter(t => t.type === tab);
+  const filtered = transactions.filter(t => t.type === (tab === 'prices' ? 'income' : tab));
+  const priceMovements = sortedMovements();
+
+  const tabs: { key: TabType; label: string }[] = [
+    { key: 'income', label: 'Income' },
+    { key: 'expense', label: 'Expenses' },
+    { key: 'prices', label: 'Prices' },
+  ];
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.replace('/(app)')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Dashboard</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Finance</Text>
@@ -45,60 +64,90 @@ export default function FinanceScreen() {
       </View>
 
       <View style={styles.content}>
-        <FinanceSummary
-          incomeTotal={incomeTotal}
-          expenseTotal={expenseTotal}
-          netTotal={netTotal}
-        />
+        {tab !== 'prices' && (
+          <FinanceSummary
+            incomeTotal={incomeTotal}
+            expenseTotal={expenseTotal}
+            netTotal={netTotal}
+          />
+        )}
 
         <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.tab, tab === 'income' && { backgroundColor: colors.primary }]}
-            onPress={() => setTab('income')}
-          >
-            <Text style={[styles.tabText, { color: tab === 'income' ? '#fff' : colors.text }]}>
-              Income ({transactions.filter(t => t.type === 'income').length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, tab === 'expense' && { backgroundColor: colors.primary }]}
-            onPress={() => setTab('expense')}
-          >
-            <Text style={[styles.tabText, { color: tab === 'expense' ? '#fff' : colors.text }]}>
-              Expenses ({transactions.filter(t => t.type === 'expense').length})
-            </Text>
-          </TouchableOpacity>
+          {tabs.map(t => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tab, tab === t.key && { backgroundColor: colors.primary }]}
+              onPress={() => setTab(t.key)}
+            >
+              <Text style={[styles.tabText, { color: tab === t.key ? '#fff' : colors.text }]}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <TransactionCard
-              transaction={item}
-              onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
-            />
-          )}
-          contentContainerStyle={styles.list}
-          refreshing={isLoading}
-          onRefresh={fetchTransactions}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No {tab === 'income' ? 'income' : 'expense'} entries yet
-              </Text>
+        {tab === 'prices' ? (
+          <>
+            <View style={styles.sortRow}>
+              {SORT_OPTIONS.map(opt => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[styles.sortChip, { backgroundColor: colors.surface, borderColor: colors.border }, sortBy === opt.key && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                  onPress={() => setSortBy(opt.key)}
+                >
+                  <Text style={[styles.sortChipText, { color: colors.textSecondary }, sortBy === opt.key && { color: '#fff' }]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          }
-        />
+            <FlatList
+              data={priceMovements}
+              keyExtractor={item => String(item.id)}
+              renderItem={({ item }) => <PriceChangeCard item={item} />}
+              contentContainerStyle={styles.list}
+              refreshing={priceLoading}
+              onRefresh={fetchMovements}
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                    No ingredient products found
+                  </Text>
+                </View>
+              }
+            />
+          </>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <TransactionCard
+                transaction={item}
+                onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
+              />
+            )}
+            contentContainerStyle={styles.list}
+            refreshing={isLoading}
+            onRefresh={fetchTransactions}
+            ListEmptyComponent={
+              <View style={styles.empty}>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  No {tab} entries yet
+                </Text>
+              </View>
+            }
+          />
+        )}
       </View>
 
-      {isAdmin() && (
+      {isAdmin() && tab !== 'prices' && (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: colors.primary }]}
           onPress={() => router.push('/(app)/finance/new')}
         >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
       )}
     </View>
   );
@@ -144,6 +193,21 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     fontWeight: '700',
   },
+  sortRow: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  sortChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  sortChipText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
   list: {
     paddingBottom: 80,
   },
@@ -156,7 +220,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

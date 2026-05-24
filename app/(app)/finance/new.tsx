@@ -19,6 +19,7 @@ export default function NewTransactionScreen() {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
+  const [categoryCustom, setCategoryCustom] = useState('');
   const [entryDate, setEntryDate] = useState('');
 
   const handleSubmit = async () => {
@@ -26,18 +27,18 @@ export default function NewTransactionScreen() {
     await addTransaction({
       description: description.trim(),
       amount: parseFloat(amount),
-      category: category.trim() || 'General',
+      category: category === 'Custom' ? (categoryCustom.trim() || 'Custom') : category.trim() || 'General',
       type,
       entry_date: entryDate || new Date().toISOString().split('T')[0],
       created_by: user!.id,
     });
-    router.back();
+    router.replace('/(app)/finance');
   };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.replace('/(app)/finance')}>
           <Ionicons name="arrow-back" size={24} color={colors.primary} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>New Transaction</Text>
@@ -73,12 +74,26 @@ export default function NewTransactionScreen() {
         keyboardType="decimal-pad"
       />
 
-      <Input
-        label="Category (optional)"
-        value={category}
-        onChangeText={setCategory}
-        placeholder="e.g. Supplies, Utilities"
-      />
+      <Text style={[styles.label, { color: colors.text }]}>Category</Text>
+      <View style={styles.categoryRow}>
+        {['Profit', 'Salary', 'Rental', 'Refund', 'Commission', 'Fee', 'Loan', 'Miscellaneous', 'Custom'].map(c => (
+          <TouchableOpacity
+            key={c}
+            style={[styles.categoryChip, { borderColor: colors.border }, category === c && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setCategory(category === c ? '' : c)}
+          >
+            <Text style={[styles.categoryChipText, { color: category === c ? '#fff' : colors.text }]}>{c}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {category === 'Custom' && (
+        <Input
+          label="Custom Category"
+          value={categoryCustom}
+          onChangeText={setCategoryCustom}
+          placeholder="Enter custom category"
+        />
+      )}
 
       <Input
         label="Date (optional, YYYY-MM-DD)"
@@ -102,6 +117,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: SPACING.md,
+  },
+  label: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginBottom: SPACING.xs,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  categoryChipText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
   typeRow: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Sale, SaleItem, SaleInput, SaleItemInput, CartSaleItem } from '../types/database';
+import type { Sale, SaleItem, SaleInput, SaleItemInput, CartSaleItem, RecipeItem } from '../types/database';
 
 export async function getAllSales(db: SQLiteDatabase): Promise<Sale[]> {
   return db.getAllAsync<Sale>('SELECT * FROM sales ORDER BY sale_date DESC');
@@ -43,11 +43,27 @@ export async function createSale(
         item.unit_price,
         item.total_price
       );
-      await txn.runAsync(
-        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
-        item.quantity,
+
+      const recipe = await txn.getAllAsync<RecipeItem>(
+        'SELECT * FROM product_recipes WHERE product_id = ?',
         item.product_id
       );
+
+      if (recipe.length > 0) {
+        for (const r of recipe) {
+          await txn.runAsync(
+            'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
+            r.quantity * item.quantity,
+            r.ingredient_id
+          );
+        }
+      } else {
+        await txn.runAsync(
+          'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
+          item.quantity,
+          item.product_id
+        );
+      }
     }
   });
   return saleId;

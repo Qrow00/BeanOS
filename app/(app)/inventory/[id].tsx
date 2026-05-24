@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, Modal, StyleSheet, Alert, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useProductStore } from '../../../src/store/productStore';
@@ -25,18 +25,44 @@ export default function EditProductScreen() {
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [selectedIngredient, setSelectedIngredient] = useState<number | null>(null);
   const [ingredientQty, setIngredientQty] = useState('1');
-  const otherProducts = products.filter(p => p.id !== Number(id) && p.stock_quantity > 0);
+  const [ingredientUnit, setIngredientUnit] = useState('pcs');
+  const [showIngredientUnitModal, setShowIngredientUnitModal] = useState(false);
+  const otherProducts = products.filter(p => p.id !== Number(id));
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (!product) router.back();
+    if (!product) router.replace('/(app)/inventory');
     else if (isDrink) fetchRecipe(product.id);
   }, [product]);
+
+  useEffect(() => {
+    if (selectedIngredient) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+    }
+  }, [selectedIngredient]);
+
+  const missingCount = recipeItems.filter(r => !r.ingredient_name).length;
+
+  useEffect(() => {
+    if (missingCount > 0 && !showAddIngredient) {
+      Alert.alert(
+        'Missing Ingredient',
+        missingCount === 1
+          ? 'An ingredient used in this recipe has been deleted. Replace it with another ingredient or add a new recipe ingredient.'
+          : `${missingCount} ingredients used in this recipe have been deleted. Replace them or add new recipe ingredients.`,
+        [
+          { text: 'Ignore', style: 'cancel' },
+          { text: 'Replace', onPress: () => setShowAddIngredient(true) },
+        ]
+      );
+    }
+  }, [missingCount]);
 
   if (!product) return null;
 
   const handleUpdate = async (data: any) => {
     await updateProduct(product.id, data);
-    router.back();
+    router.replace('/(app)/inventory');
   };
 
   const handleDelete = () => {
@@ -48,7 +74,7 @@ export default function EditProductScreen() {
         onPress: async () => {
           try {
             await deleteProduct(product.id);
-            router.back();
+            router.replace('/(app)/inventory');
           } catch {
             const db = await getDatabase();
             const row = await db.getFirstAsync<{ count: number }>(
@@ -66,7 +92,7 @@ export default function EditProductScreen() {
                   style: 'destructive',
                   onPress: async () => {
                     await forceDeleteProduct(product.id);
-                    router.back();
+                    router.replace('/(app)/inventory');
                   },
                 },
               ]
@@ -81,18 +107,20 @@ export default function EditProductScreen() {
     if (!selectedIngredient || !ingredientQty) return;
     const qty = parseFloat(ingredientQty);
     if (isNaN(qty) || qty <= 0) return;
-    await addIngredient(product.id, selectedIngredient, qty);
+    await addIngredient(product.id, selectedIngredient, qty, ingredientUnit);
     setSelectedIngredient(null);
     setIngredientQty('1');
+    setIngredientUnit('pcs');
     setShowAddIngredient(false);
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView ref={scrollRef} style={[styles.container, { backgroundColor: colors.background }]} keyboardShouldPersistTaps="handled">
       <ProductForm
         initial={product}
         onSubmit={handleUpdate}
-        onCancel={() => router.back()}
+        onCancel={() => router.replace('/(app)/inventory')}
         showRecipe={false}
       />
 
@@ -117,17 +145,17 @@ export default function EditProductScreen() {
           )}
           {recipeItems.map(item => {
             const ingProduct = products.find(p => p.id === item.ingredient_id);
+            const isMissing = !item.ingredient_name;
             return (
-              <View key={item.id} style={styles.ingredientRow}>
-                <Text style={[styles.ingredientName, { color: colors.text }]}>
-                  {item.ingredient_name}
-                </Text>
-                <Text style={[styles.ingredientQty, { color: colors.textSecondary }]}>
-                  x{item.quantity} {ingProduct?.stock_unit || ''}
-                </Text>
-                <Text style={[styles.ingredientStock, { color: colors.textSecondary }]}>
-                  (stock: {ingProduct?.stock_quantity ?? 0} {ingProduct?.stock_unit || ''})
-                </Text>
+              <View key={item.id} style={[styles.ingredientRow, isMissing && { opacity: 0.6 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.ingredientName, { color: isMissing ? colors.danger : colors.text }]}>
+                    {isMissing ? `[Deleted] Ingredient #${item.ingredient_id}` : item.ingredient_name}
+                  </Text>
+                  <Text style={[styles.ingredientQty, { color: colors.textSecondary }]}>
+                    {item.quantity} {item.measurement || ingProduct?.stock_unit || ''}
+                  </Text>
+                </View>
                 <TouchableOpacity onPress={() => removeIngredient(product.id, item.ingredient_id)}>
                   <Text style={[styles.removeIngredient, { color: colors.danger }]}>Remove</Text>
                 </TouchableOpacity>
@@ -150,6 +178,7 @@ export default function EditProductScreen() {
                 data={otherProducts}
                 keyExtractor={item => String(item.id)}
                 style={styles.ingredientList}
+                scrollEnabled={false}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[styles.ingredientOption, { backgroundColor: colors.surface, borderColor: colors.border }, selectedIngredient === item.id && { borderColor: colors.primary }]}
@@ -163,15 +192,23 @@ export default function EditProductScreen() {
               {selectedIngredient && (
                 <View style={styles.qtyRow}>
                   <Text style={[styles.formLabel, { color: colors.textSecondary }]}>Quantity</Text>
-                  <View style={styles.qtyInputRow}>
-                    <TouchableOpacity onPress={() => setIngredientQty(q => Math.max(0.5, parseFloat(q) - 0.5).toString())} style={[styles.qtyBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      <Text style={[styles.qtyBtnText, { color: colors.text }]}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.qtyValue, { color: colors.text }]}>{ingredientQty}</Text>
-                    <TouchableOpacity onPress={() => setIngredientQty(q => (parseFloat(q) + 0.5).toString())} style={[styles.qtyBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                      <Text style={[styles.qtyBtnText, { color: colors.text }]}>+</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TextInput
+                    style={[styles.qtyInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                    value={ingredientQty}
+                    onChangeText={setIngredientQty}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={colors.disabled}
+                  />
+                  <TouchableOpacity
+                    style={[styles.unitPickerBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    onPress={() => setShowIngredientUnitModal(true)}
+                  >
+                    <Text style={[styles.unitPickerText, { color: colors.text }]}>
+                      Unit: <Text style={{ fontWeight: '700' }}>{ingredientUnit}</Text>
+                    </Text>
+                    <Text style={[styles.unitPickerChevron, { color: colors.primary }]}>▼</Text>
+                  </TouchableOpacity>
                   <Button title="Add to Recipe" onPress={handleAddIngredient} style={styles.addBtn} />
                 </View>
               )}
@@ -180,10 +217,30 @@ export default function EditProductScreen() {
         </View>
       )}
 
+      <Modal visible={showIngredientUnitModal} transparent animationType="fade" onRequestClose={() => setShowIngredientUnitModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowIngredientUnitModal(false)}>
+          <View style={[styles.unitModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.unitModalTitle, { color: colors.text }]}>Select Unit</Text>
+            <View style={styles.unitGrid}>
+              {['pcs', 'kg', 'g', 'L', 'mL', 'oz', 'lb', 'cup', 'tbsp', 'tsp'].map(unit => (
+                <TouchableOpacity
+                  key={unit}
+                  style={[styles.unitOption, { borderColor: colors.border, backgroundColor: colors.background }, ingredientUnit === unit && { borderColor: colors.primary, backgroundColor: colors.primarySurface }]}
+                  onPress={() => { setIngredientUnit(unit); setShowIngredientUnitModal(false); }}
+                >
+                  <Text style={[styles.unitOptionText, { color: ingredientUnit === unit ? colors.primary : colors.text }]}>{unit}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {isAdmin() && (
         <Button title="Delete Product" variant="danger" onPress={handleDelete} style={styles.deleteBtn} />
       )}
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -285,32 +342,70 @@ const styles = StyleSheet.create({
   qtyRow: {
     marginBottom: SPACING.sm,
   },
-  qtyInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-  },
-  qtyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  qtyInput: {
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qtyBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  qtyValue: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-    minWidth: 40,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
+    marginBottom: 12,
   },
   addBtn: {
     marginTop: SPACING.xs,
+  },
+  unitPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  unitPickerText: {
+    fontSize: FONT_SIZES.sm,
+  },
+  unitPickerChevron: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    marginLeft: SPACING.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  unitModalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 16,
+    padding: SPACING.md,
+  },
+  unitModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  unitGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    justifyContent: 'center',
+  },
+  unitOption: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  unitOptionText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
   },
   deleteBtn: {
     marginTop: 16,

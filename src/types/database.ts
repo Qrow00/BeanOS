@@ -16,6 +16,9 @@ export interface Product {
   price: number;
   stock_quantity: number;
   stock_unit: string;
+  measurement: string | null;
+  is_ingredient: number;
+  initial_stock: number;
   barcode: string | null;
   description: string | null;
   image_uri: string | null;
@@ -76,6 +79,14 @@ export interface HoldTransaction {
   created_at: string;
 }
 
+export interface PriceHistory {
+  id: number;
+  product_id: number;
+  old_price: number;
+  new_price: number;
+  changed_at: string;
+}
+
 export interface Transaction {
   id: number;
   description: string;
@@ -92,11 +103,12 @@ export interface RecipeItem {
   product_id: number;
   ingredient_id: number;
   quantity: number;
+  measurement: string | null;
 }
 
 export interface RecipeItemWithName extends RecipeItem {
-  ingredient_name: string;
-  ingredient_category: string;
+  ingredient_name: string | null;
+  ingredient_category: string | null;
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'gcash' | 'maya';

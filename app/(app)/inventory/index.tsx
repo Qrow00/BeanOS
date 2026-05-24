@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -27,6 +27,10 @@ export default function InventoryScreen() {
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    fetchProducts();
+  }, []));
 
   const filteredProducts = getFilteredProducts();
   const categories = getCategories();
@@ -129,7 +133,7 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

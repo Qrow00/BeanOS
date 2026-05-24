@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal as RNModal } from 'react-native';
 import { useThemeStore } from '../../store/themeStore';
 import { SPACING, FONT_SIZES } from '../../utils/constants';
 
@@ -13,29 +13,28 @@ interface ModalProps {
 export default function Modal({ visible, title, children, onClose, modalStyle }: ModalProps) {
   const colors = useThemeStore(s => s.colors);
 
-  if (!visible) return null;
-
   return (
-    <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
-      <View style={[styles.modal, { backgroundColor: colors.surface }, modalStyle]}>
-        <View style={styles.header}>
-          {title && <Text style={[styles.title, { color: colors.text }]}>{title}</Text>}
-          <TouchableOpacity onPress={onClose}>
-            <Text style={[styles.closeBtn, { color: colors.danger }]}>✕</Text>
-          </TouchableOpacity>
+    <RNModal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+        <View style={[styles.modal, { backgroundColor: colors.surface }, modalStyle]}>
+          <View style={styles.header}>
+            {title && <Text style={[styles.title, { color: colors.text }]}>{title}</Text>}
+            <TouchableOpacity onPress={onClose}>
+              <Text style={[styles.closeBtn, { color: colors.danger }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          {children}
         </View>
-        {children}
       </View>
-    </View>
+    </RNModal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: 'center',
     paddingHorizontal: SPACING.md,
-    zIndex: 999,
   },
   modal: {
     borderRadius: 16,

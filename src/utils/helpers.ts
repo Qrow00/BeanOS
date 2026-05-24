@@ -10,6 +10,12 @@ export function hashPin(pin: string): string {
   return sha256(pin + 'mobile-pos-salt');
 }
 
+export function generateItemId(): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `ITEM-${timestamp}-${random}`;
+}
+
 export function generateReceiptNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();

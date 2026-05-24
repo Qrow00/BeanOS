@@ -183,10 +183,28 @@ export default function POSScreen() {
     setReceiptData(null);
   };
 
-  const handleAddToCart = (product: any) => {
+  const addToCartIfValid = async (product: any, showCart?: boolean) => {
+    const db = await getDatabase();
+    const recipe = await db.getAllAsync<{ ingredient_id: number }>('SELECT ingredient_id FROM product_recipes WHERE product_id = ?', product.id);
+    const isDrinkCat = ['Drink', 'Coffee', 'Tea', 'Frappe'].includes(product.category);
+    if (recipe.length > 0) {
+      const missing = await db.getFirstAsync<{ id: number }>(
+        'SELECT pr.id FROM product_recipes pr LEFT JOIN products p ON p.id = pr.ingredient_id WHERE pr.product_id = ? AND p.id IS NULL LIMIT 1',
+        product.id
+      );
+      if (missing) {
+        Alert.alert('Recipe Broken', 'This product has a recipe with deleted ingredients. Edit the product to fix or remove the recipe before selling.');
+        return;
+      }
+    } else if (isDrinkCat) {
+      Alert.alert('Recipe Missing', 'This product expects a recipe but has none. Add ingredients to the recipe before selling.');
+      return;
+    }
     addItem(product);
-    setShowCart(true);
+    if (showCart) setShowCart(true);
   };
+
+  const handleAddToCart = (product: any) => addToCartIfValid(product, true);
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountInput);
@@ -222,7 +240,7 @@ export default function POSScreen() {
 
   if (showCart) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 80 }]}>
         <View style={styles.cartHeader}>
           <TouchableOpacity onPress={() => setShowCart(false)}>
             <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
@@ -264,6 +282,7 @@ export default function POSScreen() {
             <FlatList
               data={items}
               keyExtractor={(item) => String(item.product.id)}
+              style={{ flex: 1 }}
               renderItem={({ item }) => (
                 <CartItemComponent
                   item={item}
@@ -288,6 +307,12 @@ export default function POSScreen() {
                     onPress={() => { setDiscountType('percentage'); setDiscountInput(''); setShowDiscountModal(true); }}
                   >
                     <Text style={[styles.discountBtnText, { color: colors.primary }]}>Discount</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.discountBtn, { borderColor: colors.primary, marginLeft: 'auto' }]}
+                    onPress={handleHoldSave}
+                  >
+                    <Text style={[styles.discountBtnText, { color: colors.primary }]}>Hold</Text>
                   </TouchableOpacity>
                   {manualDiscount && (
                     <TouchableOpacity onPress={clearManualDiscount}>
@@ -482,7 +507,7 @@ export default function POSScreen() {
         <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
       </View>
 
-      <RecentItems onAddToCart={addItem} />
+      <RecentItems onAddToCart={addToCartIfValid} />
 
       {viewMode === 'list' ? (
         <FlatList
@@ -492,7 +517,7 @@ export default function POSScreen() {
           renderItem={({ item }) => (
             <ProductCard
               product={item}
-              onPress={item.stock_quantity > 0 ? () => addItem(item) : undefined}
+              onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
             />
           )}
           contentContainerStyle={styles.productList}
@@ -516,9 +541,7 @@ export default function POSScreen() {
             <ProductTile
               product={item}
               tileWidth={tileWidth}
-              onAddToCart={() => {
-                addItem(item);
-              }}
+              onAddToCart={() => addToCartIfValid(item)}
             />
           )}
           contentContainerStyle={styles.productList}
@@ -650,7 +673,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cartList: {
-    flex: 1,
+    paddingBottom: SPACING.sm,
   },
   emptyCart: {
     padding: SPACING.xl,

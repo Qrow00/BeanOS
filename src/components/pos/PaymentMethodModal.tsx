@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Keyboard } from 'react-native';
 import Modal from '../ui/Modal';
 import { SPACING, FONT_SIZES } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
@@ -34,9 +34,18 @@ export default function PaymentMethodModal({
   const colors = useThemeStore(s => s.colors);
   const [tendered, setTendered] = useState('');
   const [showQRModal, setShowQRModal] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
   const isCash = selectedMethod === 'cash';
   const isQRMethod = selectedMethod === 'gcash' || selectedMethod === 'maya';
   const change = isCash && tendered ? parseFloat(tendered) - total : 0;
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {});
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const handleConfirm = () => {
     const amount = isCash ? (parseFloat(tendered) || total) : total;
@@ -45,7 +54,7 @@ export default function PaymentMethodModal({
 
   return (
     <Modal visible={visible} onClose={onClose} title="Select Payment">
-      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
         <View style={styles.options}>
           {paymentOptions.map(opt => (
             <TouchableOpacity
@@ -91,9 +100,8 @@ export default function PaymentMethodModal({
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.confirmBtn, { backgroundColor: colors.primary }, isCash && !tendered && { opacity: 0.5 }]}
+            style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
             onPress={handleConfirm}
-            disabled={isCash && !tendered}
           >
             <Text style={styles.confirmText}>Pay {formatCurrency(total)}</Text>
           </TouchableOpacity>

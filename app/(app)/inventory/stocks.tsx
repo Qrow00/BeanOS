@@ -1,74 +1,96 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useEffect, useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet, Alert } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { getDatabase } from '../../../src/database/connection';
-import { getRecipeIngredientsWithStock, addStock, setStockUnit } from '../../../src/database/stocks';
+import { getRecipeIngredientsWithStock } from '../../../src/database/stocks';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
-import type { Product } from '../../../src/types/database';
+import type { ProductWithRecipe } from '../../../src/database/stocks';
 
-const STOCK_UNITS = ['pcs', 'kg', 'g', 'L', 'mL', 'oz', 'lb', 'cup', 'tbsp', 'tsp'];
 
 export default function RecipeStocksScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
-  const [ingredients, setIngredients] = useState<Product[]>([]);
+  const [ingredients, setIngredients] = useState<ProductWithRecipe[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithRecipe | null>(null);
   const [addQty, setAddQty] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showUnitModal, setShowUnitModal] = useState(false);
-
-  const fetchIngredients = async () => {
+  const [showAddModal, setShowAddModal] = useState(false);  const fetchIngredients = async () => {
     setLoading(true);
-    const db = await getDatabase();
-    const items = await getRecipeIngredientsWithStock(db);
-    setIngredients(items);
-    setLoading(false);
+    try {
+      const db = await getDatabase();
+      const items = await getRecipeIngredientsWithStock(db);
+      setIngredients(items);
+    } catch (e) {
+      console.error('Failed to fetch ingredients', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchIngredients();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchIngredients();
+    }, [])
+  );
+
   const handleAddStock = async () => {
     if (!selectedProduct || !addQty) return;
-    const qty = parseFloat(addQty);
-    if (isNaN(qty) || qty <= 0) return;
+    const multiplier = parseFloat(addQty);
+    if (isNaN(multiplier) || multiplier <= 0) return;
     const db = await getDatabase();
-    await addStock(db, selectedProduct.id, qty);
+    await db.runAsync(
+      'UPDATE products SET stock_quantity = stock_quantity + (? * initial_stock), updated_at = datetime(\'now\') WHERE id = ?',
+      multiplier, selectedProduct.id
+    );
     await fetchIngredients();
     setShowAddModal(false);
     setAddQty('');
     setSelectedProduct(null);
   };
 
-  const handleSetUnit = async (unit: string) => {
-    if (!selectedProduct) return;
-    const db = await getDatabase();
-    await setStockUnit(db, selectedProduct.id, unit);
-    await fetchIngredients();
-    setShowUnitModal(false);
-  };
-
-  const openAddStock = (product: Product) => {
+  const openAddStock = (product: ProductWithRecipe) => {
     setSelectedProduct(product);
     setAddQty('');
     setShowAddModal(true);
   };
 
-  const openUnitPicker = (product: Product) => {
-    setSelectedProduct(product);
-    setShowUnitModal(true);
+  const handleDelete = (product: ProductWithRecipe) => {
+    Alert.alert(
+      'Delete Ingredient',
+      `Delete "${product.name}" from recipe stocks? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+            onPress: async () => {
+              try {
+                const db = await getDatabase();
+                await db.runAsync('DELETE FROM product_recipes WHERE ingredient_id = ?', product.id);
+                await db.runAsync('DELETE FROM products WHERE id = ?', product.id);
+                await fetchIngredients();
+              } catch (e) {
+                Alert.alert('Error', 'Could not delete ingredient. It may be referenced by existing sales records.');
+                console.error('Delete error', e);
+              }
+            },
+        },
+      ]
+    );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.replace('/(app)/inventory')}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Recipe Stocks</Text>
@@ -93,20 +115,33 @@ export default function RecipeStocksScreen() {
           <View style={[styles.productRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.productInfo}>
               <Text style={[styles.productName, { color: colors.text }]}>{item.name}</Text>
-              <Text style={[styles.productCategory, { color: colors.textSecondary }]}>{item.category}</Text>
               <View style={styles.stockRow}>
-                <Text style={[styles.stockValue, { color: colors.text }]}>{item.stock_quantity}</Text>
-                <TouchableOpacity onPress={() => openUnitPicker(item)}>
-                  <Text style={[styles.stockUnit, { color: colors.primary }]}>{item.stock_unit} ▼</Text>
-                </TouchableOpacity>
+                <Text style={[styles.stockValue, { color: colors.textSecondary }]}>Fixed Quantity: </Text>
+                <Text style={[styles.stockValue, { color: colors.text }]}>
+                  {item.initial_stock} {item.stock_unit || 'pcs'}
+                </Text>
+              </View>
+              <View style={styles.stockRow}>
+                <Text style={[styles.stockValue, { color: colors.textSecondary }]}>Stock: </Text>
+                <Text style={[styles.stockValue, { color: colors.text }]}>
+                  {item.stock_quantity} {item.stock_unit || 'pcs'}
+                </Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: colors.primary }]}
-              onPress={() => openAddStock(item)}
-            >
-              <Text style={styles.addBtnText}>+ Add Stock</Text>
-            </TouchableOpacity>
+            <View style={styles.actionCol}>
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: colors.primary }]}
+                onPress={() => openAddStock(item)}
+              >
+                <Text style={styles.addBtnText}>+ Add Stock</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteBtn, { borderColor: colors.danger }]}
+                onPress={() => handleDelete(item)}
+              >
+                <Text style={[styles.deleteBtnText, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       />
@@ -118,11 +153,14 @@ export default function RecipeStocksScreen() {
               Add Stock: {selectedProduct?.name}
             </Text>
             <Text style={[styles.currentStock, { color: colors.textSecondary }]}>
-              Current: {selectedProduct?.stock_quantity} {selectedProduct?.stock_unit}
+              Current: {selectedProduct?.stock_quantity} {selectedProduct?.stock_unit || 'pcs'}
+            </Text>
+            <Text style={[styles.multiplierInfo, { color: colors.textSecondary }]}>
+              Fixed Quantity: {selectedProduct?.initial_stock} {selectedProduct?.stock_unit || 'pcs'}
             </Text>
             <TextInput
               style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-              placeholder={`Quantity in ${selectedProduct?.stock_unit || 'pcs'}`}
+              placeholder={`Multiplier`}
               placeholderTextColor={colors.disabled}
               value={addQty}
               onChangeText={setAddQty}
@@ -141,30 +179,9 @@ export default function RecipeStocksScreen() {
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={showUnitModal} transparent animationType="fade" onRequestClose={() => setShowUnitModal(false)}>
-        <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowUnitModal(false)}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Unit</Text>
-            <View style={styles.unitGrid}>
-              {STOCK_UNITS.map(unit => (
-                <TouchableOpacity
-                  key={unit}
-                  style={[styles.unitOption, { borderColor: colors.border, backgroundColor: colors.background }, selectedProduct?.stock_unit === unit && { borderColor: colors.primary, backgroundColor: colors.primarySurface }]}
-                  onPress={() => handleSetUnit(unit)}
-                >
-                  <Text style={[styles.unitText, { color: selectedProduct?.stock_unit === unit ? colors.primary : colors.text }]}>
-                    {unit}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => router.push('/(app)/inventory/new')}
+        onPress={() => router.push('/(app)/inventory/new?from=stocks')}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -215,23 +232,20 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
-  productCategory: {
-    fontSize: FONT_SIZES.xs,
-    marginTop: 1,
-  },
+
   stockRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
     marginTop: SPACING.xs,
   },
+  recipeMeasurement: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+  },
   stockValue: {
     fontSize: FONT_SIZES.xl,
     fontWeight: '800',
-  },
-  stockUnit: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '600',
   },
   addBtn: {
     paddingHorizontal: SPACING.md,
@@ -241,6 +255,20 @@ const styles = StyleSheet.create({
   addBtnText: {
     color: '#fff',
     fontWeight: '700',
+    fontSize: FONT_SIZES.sm,
+  },
+  actionCol: {
+    gap: SPACING.xs,
+  },
+  deleteBtn: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  deleteBtnText: {
+    fontWeight: '600',
     fontSize: FONT_SIZES.sm,
   },
   modalOverlay: {
@@ -264,6 +292,11 @@ const styles = StyleSheet.create({
   currentStock: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  multiplierInfo: {
+    fontSize: FONT_SIZES.sm,
     textAlign: 'center',
     marginBottom: SPACING.md,
   },
@@ -301,25 +334,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
-  unitGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.xs,
-    justifyContent: 'center',
-  },
-  unitOption: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  unitText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-  },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

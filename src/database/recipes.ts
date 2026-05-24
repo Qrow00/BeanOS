@@ -8,7 +8,7 @@ export async function getRecipe(
   return db.getAllAsync<RecipeItemWithName>(
     `SELECT pr.*, p.name AS ingredient_name, p.category AS ingredient_category
      FROM product_recipes pr
-     JOIN products p ON p.id = pr.ingredient_id
+     LEFT JOIN products p ON p.id = pr.ingredient_id
      WHERE pr.product_id = ?
      ORDER BY p.name`,
     productId
@@ -19,13 +19,15 @@ export async function addRecipeItem(
   db: SQLiteDatabase,
   productId: number,
   ingredientId: number,
-  quantity: number
+  quantity: number,
+  measurement?: string
 ): Promise<void> {
   await db.runAsync(
-    'INSERT OR REPLACE INTO product_recipes (product_id, ingredient_id, quantity) VALUES (?, ?, ?)',
+    'INSERT OR REPLACE INTO product_recipes (product_id, ingredient_id, quantity, measurement) VALUES (?, ?, ?, ?)',
     productId,
     ingredientId,
-    quantity
+    quantity,
+    measurement || ''
   );
 }
 

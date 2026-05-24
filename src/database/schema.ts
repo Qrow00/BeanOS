@@ -23,6 +23,7 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       category TEXT NOT NULL DEFAULT 'General',
       price REAL NOT NULL CHECK(price >= 0),
       stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK(stock_quantity >= 0),
+      is_ingredient INTEGER NOT NULL DEFAULT 0,
       barcode TEXT,
       description TEXT,
       image_uri TEXT,
@@ -101,14 +102,24 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
-    CREATE TABLE IF NOT EXISTS product_recipes (
+      CREATE TABLE IF NOT EXISTS product_recipes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id INTEGER NOT NULL,
+        ingredient_id INTEGER NOT NULL,
+        quantity REAL NOT NULL CHECK(quantity > 0),
+        measurement TEXT DEFAULT '',
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (ingredient_id) REFERENCES products(id),
+        UNIQUE(product_id, ingredient_id)
+      );
+
+    CREATE TABLE IF NOT EXISTS price_history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
-      ingredient_id INTEGER NOT NULL,
-      quantity REAL NOT NULL CHECK(quantity > 0),
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-      FOREIGN KEY (ingredient_id) REFERENCES products(id),
-      UNIQUE(product_id, ingredient_id)
+      old_price REAL NOT NULL,
+      new_price REAL NOT NULL,
+      changed_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     );
   `);
 
@@ -121,6 +132,22 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   if (!prodCols.some(c => c.name === 'stock_unit')) {
     await db.execAsync("ALTER TABLE products ADD COLUMN stock_unit TEXT NOT NULL DEFAULT 'pcs'");
   }
+  if (!prodCols.some(c => c.name === 'measurement')) {
+    await db.execAsync("ALTER TABLE products ADD COLUMN measurement TEXT DEFAULT ''");
+  }
+  if (!prodCols.some(c => c.name === 'is_ingredient')) {
+    await db.execAsync("ALTER TABLE products ADD COLUMN is_ingredient INTEGER DEFAULT 0");
+  }
+  if (!prodCols.some(c => c.name === 'initial_stock')) {
+    try { await db.execAsync("ALTER TABLE products ADD COLUMN initial_stock INTEGER DEFAULT 0"); } catch {}
+  }
+
+  try {
+    const recipeCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(product_recipes)');
+    if (!recipeCols.some(c => c.name === 'measurement')) {
+      await db.execAsync("ALTER TABLE product_recipes ADD COLUMN measurement TEXT DEFAULT ''");
+    }
+  } catch { /* table may not exist yet */ }
 
   await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('0000'), 'admin');
   await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('1234'), 'user');

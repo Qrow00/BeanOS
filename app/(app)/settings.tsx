@@ -20,11 +20,6 @@ const currencies = [
   { symbol: '¥', code: 'JPY', label: 'Japanese Yen' },
 ];
 
-const MANAGEMENT_ACTIONS = [
-  { title: 'Add Product', icon: '📦', route: '/(app)/inventory/new' },
-  { title: 'New Transaction', icon: '💸', route: '/(app)/finance/new' },
-] as const;
-
 const STAFF_NAV_LINKS = [
   { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
   { title: 'Loyalty Card', icon: '💳', route: '/(app)/loyalty' },
@@ -94,7 +89,23 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 100 }}>
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
+          <TextInput
+            style={[styles.storeNameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+            value={storeName}
+            onChangeText={saveStoreName}
+            placeholder="Store name"
+            placeholderTextColor={colors.disabled}
+          />
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
+            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
+          </View>
+        </Card>
+
         <Card style={styles.section}>
           <View style={styles.themeRow}>
             <View style={styles.themeInfo}>
@@ -114,18 +125,6 @@ export default function SettingsScreen() {
 
         {isAdmin() && (
           <>
-            {MANAGEMENT_ACTIONS.map((action, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.actionIcon}>{action.icon}</Text>
-                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
-                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
-              </TouchableOpacity>
-            ))}
             {ADMIN_NAV_LINKS.map((action, i) => (
               <TouchableOpacity
                 key={`nav-${i}`}
@@ -177,6 +176,7 @@ export default function SettingsScreen() {
           <Text style={[styles.actionTitle, { color: colors.text }]}>Payment QR Codes</Text>
           <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
         </TouchableOpacity>
+
         <Card style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency</Text>
           <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Select the currency used throughout the app</Text>
@@ -218,24 +218,6 @@ export default function SettingsScreen() {
             </View>
           </View>
         </Modal>
-
-        <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
-          <View style={styles.infoRow}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
-            <TextInput
-              style={[styles.storeNameInput, { color: colors.text, borderBottomColor: colors.border }]}
-              value={storeName}
-              onChangeText={saveStoreName}
-              placeholder="Store name"
-              placeholderTextColor={colors.disabled}
-            />
-          </View>
-          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
-          </View>
-        </Card>
 
         <Card style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
@@ -417,13 +399,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   storeNameInput: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.md,
     fontWeight: '600',
-    textAlign: 'right',
-    flex: 1,
-    marginLeft: SPACING.md,
-    borderBottomWidth: 1,
-    paddingVertical: 2,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    width: '100%',
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.md,
   },
   exportImportRow: {
     gap: SPACING.sm,

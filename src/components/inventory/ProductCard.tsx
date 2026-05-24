@@ -32,7 +32,12 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
         </Text>
         {!outOfStock && (
           <Text style={[styles.stock, { color: colors.textSecondary }]}>
-            Stock: {product.stock_quantity}
+            Initial Stock: {product.initial_stock}
+          </Text>
+        )}
+        {!outOfStock && (
+          <Text style={[styles.stock, { color: colors.textSecondary }]}>
+            Current Stock: {product.stock_quantity}
           </Text>
         )}
       </View>
