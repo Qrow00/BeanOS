@@ -1,7 +1,7 @@
 {
   "expo": {
     "owner": "bean-around-cafe",
-    "name": "mobile-pos",
+    "name": "BeanOS",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -12,6 +12,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "mobile-pos",
+    "updates": {
+      "url": "https://u.expo.dev/83037f5e-e927-46ec-80b0-1578c93492d8",
+      "fallbackToCacheTimeout": 0
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "cover",

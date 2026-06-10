@@ -11,6 +11,8 @@ import { getDatabase } from '../../src/database/connection';
 import { exportToExcel, importFromExcel } from '../../src/services/importExport';
 import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
+import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 
 const currencies = [
   { symbol: '₱', code: 'PHP', label: 'Philippine Peso' },
@@ -40,6 +42,7 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const switchRef = useRef<View>(null);
 
   const handleExport = async () => {
@@ -68,6 +71,43 @@ export default function SettingsScreen() {
       Alert.alert('Error', 'Failed to import inventory');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      if (result.isAvailable) {
+        Alert.alert(
+          'Update Available',
+          'A new update is available. Download and restart now?',
+          [
+            { text: 'Later', style: 'cancel' },
+            {
+              text: 'Update',
+              onPress: async () => {
+                try {
+                  await Updates.fetchUpdateAsync();
+                  await Updates.reloadAsync();
+                } catch {
+                  Alert.alert('Error', 'Failed to download update');
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Up to Date', 'You are running the latest version');
+      }
+    } catch (err: any) {
+      if (String(err?.message ?? '').includes('ERR_UPDATES_DISABLED')) {
+        Alert.alert('Not Available', 'Updates are only available in release builds');
+      } else {
+        Alert.alert('Error', 'Failed to check for updates');
+      }
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -234,8 +274,19 @@ export default function SettingsScreen() {
         </Card>
 
         <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Updates</Text>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Check for new updates to the app</Text>
+          <Button
+            title="Check for Updates"
+            onPress={handleCheckUpdate}
+            variant="outline"
+            loading={checkingUpdate}
+          />
+        </Card>
+
+        <Card style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>{APP_NAME} v1.0.0</Text>
+          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>{APP_NAME} v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
           <Text style={[styles.aboutText, { color: colors.textSecondary }]}>Offline-First Mobile POS System</Text>
         </Card>
 
