@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Animated, PanResponder, Alert } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { getDatabase } from '../../../src/database/connection';
 import { useThemeStore } from '../../../src/store/themeStore';
+import { useAuthStore } from '../../../src/store/authStore';
 import type { Sale, SaleItem } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 import { formatCurrency, formatDate } from '../../../src/utils/helpers';
 import Card from '../../../src/components/ui/Card';
+import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 
 type DateFilter = 'all' | 'today' | 'week' | 'month';
@@ -15,17 +17,21 @@ type DateFilter = 'all' | 'today' | 'week' | 'month';
 export default function SalesHistoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const { isAdmin } = useAuthStore();
   const [sales, setSales] = useState<(Sale & { items?: SaleItem[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DateFilter>('all');
+  const [pendingDelete, setPendingDelete] = useState<Sale | null>(null);
   const [selectedSale, setSelectedSale] = useState<{
     sale: Sale;
     items: CartItem[];
   } | null>(null);
 
-  useEffect(() => {
-    loadSales();
-  }, [filter]);
+  useFocusEffect(
+    useCallback(() => {
+      loadSales();
+    }, [filter])
+  );
 
   const loadSales = async () => {
     setLoading(true);
@@ -55,6 +61,60 @@ export default function SalesHistoryScreen() {
     } catch {} finally {
       setLoading(false);
     }
+  };
+
+  const handleDelete = (sale: Sale) => {
+    setPendingDelete(sale);
+  };
+
+  const confirmDelete = async () => {
+    const sale = pendingDelete;
+    if (!sale) return;
+    try {
+      const db = await getDatabase();
+      await db.runAsync('DELETE FROM sales WHERE id = ?', sale.id);
+      setSales(prev => prev.filter(s => s.id !== sale.id));
+    } catch (e) {
+      Alert.alert('Error', 'Could not delete the sale record.');
+    } finally {
+      setPendingDelete(null);
+    }
+  };
+
+  const SwipeableRow = ({ item, children }: { item: Sale; children: React.ReactNode }) => {
+    const itemRef = useRef(item);
+    itemRef.current = item;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const deleteTranslate = translateX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [0, 80],
+      extrapolate: 'clamp',
+    });
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy),
+        onPanResponderMove: (_, g) => {
+          if (g.dx < 0) translateX.setValue(Math.max(g.dx, -80));
+        },
+        onPanResponderRelease: (_, g) => {
+          if (g.dx < -50) handleDelete(itemRef.current);
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        },
+      })
+    ).current;
+
+    return (
+      <View style={{ marginBottom: SPACING.sm }}>
+        <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+          <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+            {children}
+          </Animated.View>
+          <Animated.View style={[styles.swipeDeleteContainer, { backgroundColor: colors.danger, transform: [{ translateX: deleteTranslate }] }]}>
+            <Text style={styles.swipeDeleteText}>Delete</Text>
+          </Animated.View>
+        </View>
+      </View>
+    );
   };
 
   const handleViewReceipt = async (sale: Sale) => {
@@ -134,31 +194,47 @@ export default function SalesHistoryScreen() {
       <FlatList
         data={sales}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleViewReceipt(item)}>
-            <Card style={styles.saleCard}>
-              <View style={styles.saleHeader}>
-                <Text style={[styles.receipt, { color: colors.text }]}>{item.receipt_number}</Text>
-                <Text style={[styles.paymentMethod, { color: colors.text, backgroundColor: colors.primarySurface }]}>{item.payment_method.toUpperCase()}</Text>
-              </View>
-              <View style={styles.saleDetails}>
-                <Text style={[styles.detailText, { color: colors.text }]}>Subtotal: {formatCurrency(item.subtotal)}</Text>
-                {item.discount_amount > 0 && (
-                  <Text style={[styles.discount, { color: colors.success }]}>Discount: -{formatCurrency(item.discount_amount)}</Text>
-                )}
-                <Text style={[styles.total, { color: colors.text }]}>Total: {formatCurrency(item.total)}</Text>
-                <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(item.sale_date)}</Text>
-              </View>
-            </Card>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const card = (
+            <TouchableOpacity onPress={() => handleViewReceipt(item)}>
+              <Card style={styles.saleCard}>
+                <View style={styles.saleHeader}>
+                  <Text style={[styles.receipt, { color: colors.text }]}>{item.receipt_number}</Text>
+                  <Text style={[styles.paymentMethod, { color: colors.text, backgroundColor: colors.primarySurface }]}>{item.payment_method.toUpperCase()}</Text>
+                </View>
+                <View style={styles.saleDetails}>
+                  <Text style={[styles.detailText, { color: colors.text }]}>Subtotal: {formatCurrency(item.subtotal)}</Text>
+                  {item.discount_amount > 0 && (
+                    <Text style={[styles.discount, { color: colors.success }]}>Discount: -{formatCurrency(item.discount_amount)}</Text>
+                  )}
+                  <Text style={[styles.total, { color: colors.text }]}>Total: {formatCurrency(item.total)}</Text>
+                  <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(item.sale_date)}</Text>
+                </View>
+              </Card>
+            </TouchableOpacity>
+          );
+          return isAdmin() ? <SwipeableRow item={item}>{card}</SwipeableRow> : card;
+        }}
         refreshing={loading}
         onRefresh={loadSales}
+        ListFooterComponent={
+          isAdmin() ? <Text style={[styles.swipeHint, { color: colors.textSecondary }]}>Swipe left on a sale to delete</Text> : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No sales recorded yet</Text>
           </View>
         }
+      />
+
+      <ConfirmModal
+        visible={pendingDelete !== null}
+        title="Delete Sale"
+        message={`Delete sale "${pendingDelete?.receipt_number}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
       />
     </View>
   );
@@ -225,6 +301,25 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FONT_SIZES.md,
+  },
+  swipeDeleteContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeDeleteText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: FONT_SIZES.sm,
+  },
+  swipeHint: {
+    textAlign: 'center',
+    fontSize: FONT_SIZES.sm,
+    paddingVertical: SPACING.sm,
   },
   header: {
     flexDirection: 'row',
