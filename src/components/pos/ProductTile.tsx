@@ -1,6 +1,8 @@
+import { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SPACING, FONT_SIZES, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
+import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
 
@@ -8,11 +10,11 @@ interface ProductTileProps {
   product: Product;
   tileWidth: number;
   onAddToCart: () => void;
-  quantity?: number;
 }
 
-export default function ProductTile({ product, tileWidth, onAddToCart, quantity = 0 }: ProductTileProps) {
+function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
   const colors = useThemeStore(s => s.colors);
+  const quantity = useCartStore(s => s.items.find(i => i.product.id === product.id)?.quantity ?? 0);
   const outOfStock = product.stock_quantity <= 0;
   const inCart = quantity > 0;
 
@@ -44,6 +46,8 @@ export default function ProductTile({ product, tileWidth, onAddToCart, quantity 
     </TouchableOpacity>
   );
 }
+
+export default memo(ProductTile, (prev, next) => prev.product.id === next.product.id && prev.tileWidth === next.tileWidth);
 
 const styles = StyleSheet.create({
   tile: {

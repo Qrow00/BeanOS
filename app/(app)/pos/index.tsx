@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, useWindowDimensions } from 'react-native';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
@@ -20,14 +20,33 @@ import PaymentMethodModal from '../../../src/components/pos/PaymentMethodModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import CoffeeConfetti from '../../../src/components/pos/CoffeeConfetti';
-import type { ViewMode, PaymentMethod, HoldTransaction } from '../../../src/types/database';
+import type { ViewMode, PaymentMethod, HoldTransaction, Product } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 
 export default function POSScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
-  const { products, fetchProducts, searchQuery, setSearchQuery, getFilteredProducts, getCategories, selectedCategory, setSelectedCategory } = useProductStore();
-  const { items, manualDiscount, addItem, removeItem, updateQuantity, clearCart, setManualDiscount, clearManualDiscount, getSubtotal, getDiscount, getTotal, getItemCount, paymentMethod, setPaymentMethod, holdCart, getHeldTransactions, restoreCart, deleteHeldTransaction } = useCartStore();
+  const products = useProductStore(s => s.products);
+  const fetchProducts = useProductStore(s => s.fetchProducts);
+  const searchQuery = useProductStore(s => s.searchQuery);
+  const setSearchQuery = useProductStore(s => s.setSearchQuery);
+  const selectedCategory = useProductStore(s => s.selectedCategory);
+  const setSelectedCategory = useProductStore(s => s.setSelectedCategory);
+
+  const items = useCartStore(s => s.items);
+  const manualDiscount = useCartStore(s => s.manualDiscount);
+  const addItem = useCartStore(s => s.addItem);
+  const removeItem = useCartStore(s => s.removeItem);
+  const updateQuantity = useCartStore(s => s.updateQuantity);
+  const clearCart = useCartStore(s => s.clearCart);
+  const setManualDiscount = useCartStore(s => s.setManualDiscount);
+  const clearManualDiscount = useCartStore(s => s.clearManualDiscount);
+  const paymentMethod = useCartStore(s => s.paymentMethod);
+  const setPaymentMethod = useCartStore(s => s.setPaymentMethod);
+  const holdCart = useCartStore(s => s.holdCart);
+  const getHeldTransactions = useCartStore(s => s.getHeldTransactions);
+  const restoreCart = useCartStore(s => s.restoreCart);
+  const deleteHeldTransaction = useCartStore(s => s.deleteHeldTransaction);
   const { user } = useAuthStore();
 
   const [showCart, setShowCart] = useState(false);
@@ -50,6 +69,56 @@ export default function POSScreen() {
   const isLandscape = screenWidth > screenHeight;
   const numColumns = isLandscape ? 6 : 3;
   const tileWidth = (screenWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
+
+  const filteredProducts = useMemo(() => {
+    let filtered = products.filter(p => !p.is_ingredient);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.item_id.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q))
+      );
+    }
+    if (selectedCategory) {
+      filtered = filtered.filter(p => p.category === selectedCategory);
+    }
+    return filtered;
+  }, [products, searchQuery, selectedCategory]);
+
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts];
+    if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
+    else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
+    else if (sortBy === 'category') list.sort((a, b) => {
+      if (a.category === b.category) return a.name.localeCompare(b.name);
+      if (a.category === 'Pastry') return 1;
+      if (b.category === 'Pastry') return -1;
+      return a.category.localeCompare(b.category);
+    });
+    else list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [filteredProducts, sortBy]);
+
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category));
+    return Array.from(cats).sort();
+  }, [products]);
+
+  const subtotal = useCartStore(s => s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0));
+  const discount = useCartStore(s => {
+    if (!s.manualDiscount) return 0;
+    const sub = s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    if (s.manualDiscount.type === 'percentage') return sub * (s.manualDiscount.value / 100);
+    return Math.min(s.manualDiscount.value, sub);
+  });
+  const total = useCartStore(s => {
+    const sub = s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    if (!s.manualDiscount) return sub;
+    const disc = s.manualDiscount.type === 'percentage' ? sub * (s.manualDiscount.value / 100) : Math.min(s.manualDiscount.value, sub);
+    return sub - disc;
+  });
+  const itemCount = useCartStore(s => s.items.reduce((sum, i) => sum + i.quantity, 0));
 
   const [receiptData, setReceiptData] = useState<{
     receiptNumber: string;
@@ -123,27 +192,6 @@ export default function POSScreen() {
     setPendingDeleteHold(null);
   };
 
-  const filteredProducts = getFilteredProducts();
-  const sortedProducts = (() => {
-    const list = [...filteredProducts];
-    if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
-    else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
-    else if (sortBy === 'category') list.sort((a, b) => {
-      if (a.category === b.category) return a.name.localeCompare(b.name);
-      if (a.category === 'Pastry') return 1;
-      if (b.category === 'Pastry') return -1;
-      return a.category.localeCompare(b.category);
-    });
-    else list.sort((a, b) => a.name.localeCompare(b.name));
-    return list;
-  })();
-  const categories = getCategories();
-
-  const subtotal = getSubtotal();
-  const discount = getDiscount();
-  const total = getTotal();
-  const itemCount = getItemCount();
-
   const handleCheckout = async (method: PaymentMethod, amountTendered: number) => {
     if (items.length === 0) return;
     setProcessing(true);
@@ -211,7 +259,10 @@ export default function POSScreen() {
     setShowConfetti(false);
   };
 
-  const addToCartIfValid = async (product: any, showCart?: boolean) => {
+  const addToCartIfValid = useCallback(async (product: any, showCart?: boolean) => {
+    addItem(product);
+    if (showCart) setShowCart(true);
+
     const db = await getDatabase();
     const recipe = await db.getAllAsync<{ ingredient_id: number }>('SELECT ingredient_id FROM product_recipes WHERE product_id = ?', product.id);
     const isDrinkCat = ['Drink', 'Coffee', 'Tea', 'Frappe'].includes(product.category);
@@ -221,18 +272,16 @@ export default function POSScreen() {
         product.id
       );
       if (missing) {
+        removeItem(product.id);
         Alert.alert('Recipe Broken', 'This product has a recipe with deleted ingredients. Edit the product to fix or remove the recipe before selling.');
         return;
       }
     } else if (isDrinkCat) {
+      removeItem(product.id);
       Alert.alert('Recipe Missing', 'This product expects a recipe but has none. Add ingredients to the recipe before selling.');
       return;
     }
-    addItem(product);
-    if (showCart) setShowCart(true);
-  };
-
-  const handleAddToCart = (product: any) => addToCartIfValid(product, true);
+  }, [addItem, removeItem, setShowCart]);
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountInput);
@@ -248,6 +297,66 @@ export default function POSScreen() {
     setShowDiscountModal(false);
     setDiscountInput('');
   };
+
+  const renderListHeader = useCallback(() => (
+    <View>
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
+
+      {categories.length > 0 && (
+        <View style={styles.categoryRow}>
+          <TouchableOpacity
+            style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
+          </TouchableOpacity>
+          {categories.slice(0, isLandscape ? 14 : 8).map(cat => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+            >
+              <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.todayRow}>
+        <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
+        <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+        <View style={styles.viewToggleGroup}>
+          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
+            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
+              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowSortModal(true)} style={styles.sortBtn}>
+            <Text style={[styles.sortBtnText, { color: colors.text }]}>⇅ Sort</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <RecentItems onAddToCart={addToCartIfValid} />
+    </View>
+  ), [searchQuery, setSearchQuery, categories, colors, selectedCategory, setSelectedCategory, isLandscape, todayTotal, viewMode, setViewMode, setShowSortModal, addToCartIfValid]);
+
+  const keyExtractor = useCallback((item: Product) => String(item.id), []);
+
+  const renderListItem = useCallback(({ item }: { item: Product }) => (
+    <ProductCard
+      product={item}
+      onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
+    />
+  ), [addToCartIfValid]);
+
+  const renderGridItem = useCallback(({ item }: { item: Product }) => (
+    <ProductTile
+      product={item}
+      tileWidth={tileWidth}
+      onAddToCart={() => addToCartIfValid(item)}
+    />
+  ), [addToCartIfValid, tileWidth]);
 
   if (receiptData) {
     return (
@@ -518,49 +627,6 @@ export default function POSScreen() {
     );
   }
 
-  const renderListHeader = () => (
-    <View>
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
-
-      {categories.length > 0 && (
-        <View style={styles.categoryRow}>
-          <TouchableOpacity
-            style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
-          </TouchableOpacity>
-          {categories.slice(0, isLandscape ? 14 : 8).map(cat => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-              onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-            >
-              <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      <View style={styles.todayRow}>
-        <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
-        <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
-        <View style={styles.viewToggleGroup}>
-          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
-            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
-              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowSortModal(true)} style={styles.sortBtn}>
-            <Text style={[styles.sortBtnText, { color: colors.text }]}>⇅ Sort</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <RecentItems onAddToCart={addToCartIfValid} />
-    </View>
-  );
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.posHeader}>
@@ -601,16 +667,9 @@ export default function POSScreen() {
         <FlatList
           key="list"
           data={sortedProducts}
-          keyExtractor={(item) => String(item.id)}
-          extraData={items}
+          keyExtractor={keyExtractor}
           ListHeaderComponent={renderListHeader}
-          renderItem={({ item }) => (
-            <ProductCard
-              product={item}
-              quantity={items.find(i => i.product.id === item.id)?.quantity || 0}
-              onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
-            />
-          )}
+          renderItem={renderListItem}
           contentContainerStyle={styles.productList}
           refreshing={false}
           ListEmptyComponent={
@@ -625,19 +684,11 @@ export default function POSScreen() {
         <FlatList
           key={`grid-${numColumns}`}
           data={sortedProducts}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={keyExtractor}
           numColumns={numColumns}
           columnWrapperStyle={styles.gridRow}
-          extraData={items}
           ListHeaderComponent={renderListHeader}
-          renderItem={({ item }) => (
-            <ProductTile
-              product={item}
-              tileWidth={tileWidth}
-              quantity={items.find(i => i.product.id === item.id)?.quantity || 0}
-              onAddToCart={() => addToCartIfValid(item)}
-            />
-          )}
+          renderItem={renderGridItem}
           contentContainerStyle={styles.productList}
           ListEmptyComponent={
             <View style={styles.empty}>

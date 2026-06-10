@@ -1,17 +1,19 @@
+import { memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SPACING, FONT_SIZES, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
+import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
 
 interface ProductCardProps {
   product: Product;
   onPress?: () => void;
-  quantity?: number;
 }
 
-export default function ProductCard({ product, onPress, quantity = 0 }: ProductCardProps) {
+function ProductCard({ product, onPress }: ProductCardProps) {
   const colors = useThemeStore(s => s.colors);
+  const quantity = useCartStore(s => s.items.find(i => i.product.id === product.id)?.quantity ?? 0);
   const outOfStock = product.stock_quantity <= 0;
   const isDrink = product.category.toLowerCase() === 'drink';
   const inCart = quantity > 0;
@@ -56,6 +58,8 @@ export default function ProductCard({ product, onPress, quantity = 0 }: ProductC
     </TouchableOpacity>
   );
 }
+
+export default memo(ProductCard, (prev, next) => prev.product.id === next.product.id);
 
 const styles = StyleSheet.create({
   card: {
