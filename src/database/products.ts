@@ -36,8 +36,8 @@ export async function searchProducts(
 
 export async function createProduct(db: SQLiteDatabase, input: ProductInput): Promise<number> {
   const result = await db.runAsync(
-    `INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, measurement, is_ingredient, barcode, description, image_uri, initial_stock)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, measurement, is_ingredient, icon_color, barcode, description, image_uri, initial_stock)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.item_id,
     input.name,
     input.category,
@@ -46,6 +46,7 @@ export async function createProduct(db: SQLiteDatabase, input: ProductInput): Pr
     input.stock_unit,
     input.measurement || '',
     input.is_ingredient ?? 0,
+    input.icon_color || '',
     input.barcode,
     input.description,
     input.image_uri,
@@ -73,6 +74,7 @@ export async function updateProduct(
   if (input.image_uri !== undefined) { fields.push('image_uri = ?'); values.push(input.image_uri); }
   if (input.measurement !== undefined) { fields.push('measurement = ?'); values.push(input.measurement); }
   if (input.is_ingredient !== undefined) { fields.push('is_ingredient = ?'); values.push(input.is_ingredient); }
+  if (input.icon_color !== undefined) { fields.push('icon_color = ?'); values.push(input.icon_color); }
 
   if (fields.length === 0) return;
   fields.push("updated_at = datetime('now')");

@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:preview": "eas build --platform android --profile preview",
+    "build:production": "eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -22,6 +24,7 @@
     "expo-haptics": "~14.1.4",
     "expo-image-picker": "~16.1.4",
     "expo-linking": "~7.1.7",
+    "expo-navigation-bar": "~4.2.8",
     "expo-router": "~5.1.11",
     "expo-sharing": "~13.1.5",
     "expo-sqlite": "~15.2.14",
@@ -40,6 +43,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.0.10",
+    "qrcode": "^1.5.4",
     "typescript": "~5.8.3"
   },
   "private": true

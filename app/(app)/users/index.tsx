@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -12,6 +12,8 @@ export default function UsersScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const { isAdmin } = useAuthStore();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const { users, fetchUsers, deleteUser, isLoading } = useUserStore();
 
   useEffect(() => {
@@ -64,13 +66,13 @@ export default function UsersScreen() {
           </TouchableOpacity>
           );
         }}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
         refreshing={isLoading}
         onRefresh={fetchUsers}
       />
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
+        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
         onPress={() => router.push('/(app)/users/new')}
       >
         <Text style={styles.fabText}>+</Text>
@@ -85,7 +87,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   list: {
-    paddingBottom: 80,
+    flexGrow: 1,
   },
   userCard: {
     flexDirection: 'row',
@@ -126,7 +128,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
     right: 20,
     width: 56,
     height: 56,

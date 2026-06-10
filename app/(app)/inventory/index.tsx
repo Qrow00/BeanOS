@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
@@ -11,6 +11,8 @@ import SearchBar from '../../../src/components/inventory/SearchBar';
 export default function InventoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const {
     fetchProducts,
     getFilteredProducts,
@@ -35,8 +37,8 @@ export default function InventoryScreen() {
   const filteredProducts = getFilteredProducts();
   const categories = getCategories();
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+  const renderListHeader = () => (
+    <View>
       <View style={{ marginTop: 10 }}>
         <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
       </View>
@@ -68,17 +70,22 @@ export default function InventoryScreen() {
           ))}
         </View>
       )}
+    </View>
+  );
 
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => String(item.id)}
+        ListHeaderComponent={renderListHeader}
         renderItem={({ item }) => (
           <ProductCard
             product={item}
             onPress={() => router.push(`/(app)/inventory/${item.id}`)}
           />
         )}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
         refreshing={isLoading}
         onRefresh={fetchProducts}
         ListEmptyComponent={
@@ -91,7 +98,7 @@ export default function InventoryScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
+        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
         onPress={() => router.push('/(app)/inventory/new')}
       >
         <Text style={styles.fabText}>+</Text>
@@ -122,7 +129,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   list: {
-    paddingBottom: 80,
+    flexGrow: 1,
   },
   empty: {
     padding: SPACING.xl,
@@ -133,7 +140,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, useWindowDimensions } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
@@ -19,6 +19,7 @@ import QuantityInputModal from '../../../src/components/pos/QuantityInputModal';
 import PaymentMethodModal from '../../../src/components/pos/PaymentMethodModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 import ConfirmModal from '../../../src/components/ui/ConfirmModal';
+import CoffeeConfetti from '../../../src/components/pos/CoffeeConfetti';
 import type { ViewMode, PaymentMethod, HoldTransaction } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 
@@ -41,9 +42,13 @@ export default function POSScreen() {
   const [holds, setHolds] = useState<HoldTransaction[]>([]);
   const [holdsLoading, setHoldsLoading] = useState(false);
   const [holdLabel, setHoldLabel] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'price_asc' | 'price_desc' | 'category'>('category');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const isLandscape = screenWidth > screenHeight;
-  const numColumns = isLandscape ? 4 : 2;
+  const numColumns = isLandscape ? 6 : 3;
   const tileWidth = (screenWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
 
   const [receiptData, setReceiptData] = useState<{
@@ -119,6 +124,19 @@ export default function POSScreen() {
   };
 
   const filteredProducts = getFilteredProducts();
+  const sortedProducts = (() => {
+    const list = [...filteredProducts];
+    if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
+    else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
+    else if (sortBy === 'category') list.sort((a, b) => {
+      if (a.category === b.category) return a.name.localeCompare(b.name);
+      if (a.category === 'Pastry') return 1;
+      if (b.category === 'Pastry') return -1;
+      return a.category.localeCompare(b.category);
+    });
+    else list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  })();
   const categories = getCategories();
 
   const subtotal = getSubtotal();
@@ -168,6 +186,8 @@ export default function POSScreen() {
       setShowPaymentModal(false);
       clearCart();
       fetchProducts();
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
     } catch (err) {
       Alert.alert('Error', 'Failed to complete sale');
     } finally {
@@ -188,6 +208,7 @@ export default function POSScreen() {
 
   const handleNewSale = () => {
     setReceiptData(null);
+    setShowConfetti(false);
   };
 
   const addToCartIfValid = async (product: any, showCart?: boolean) => {
@@ -230,24 +251,29 @@ export default function POSScreen() {
 
   if (receiptData) {
     return (
-      <ReceiptScreen
-        receiptNumber={receiptData.receiptNumber}
-        items={receiptData.items}
-        subtotal={receiptData.subtotal}
-        discount={receiptData.discount}
-        total={receiptData.total}
-        paymentMethod={receiptData.paymentMethod}
-        amountTendered={receiptData.amountTendered}
-        change={receiptData.change}
-        cashierName={user?.display_name || user?.username || ''}
-        onNewSale={handleNewSale}
-      />
+      <View style={{ flex: 1 }}>
+        <ReceiptScreen
+          receiptNumber={receiptData.receiptNumber}
+          items={receiptData.items}
+          subtotal={receiptData.subtotal}
+          discount={receiptData.discount}
+          total={receiptData.total}
+          paymentMethod={receiptData.paymentMethod}
+          amountTendered={receiptData.amountTendered}
+          change={receiptData.change}
+          cashierName={user?.display_name || user?.username || ''}
+          onNewSale={handleNewSale}
+        />
+        {showConfetti && <CoffeeConfetti />}
+      </View>
     );
   }
 
+  const tabBarHeight = isLandscape ? 56 : 80;
+
   if (showCart) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: 80 }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: tabBarHeight - 50 }]}>
         <View style={styles.cartHeader}>
           <TouchableOpacity onPress={() => setShowCart(false)}>
             <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
@@ -302,6 +328,12 @@ export default function POSScreen() {
               ListEmptyComponent={
                 <View style={styles.emptyCart}>
                   <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>Cart is empty</Text>
+                  <TouchableOpacity
+                    style={[styles.newSaleBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => setShowCart(false)}
+                  >
+                    <Text style={styles.newSaleBtnText}>New Sale</Text>
+                  </TouchableOpacity>
                 </View>
               }
             />
@@ -486,22 +518,8 @@ export default function POSScreen() {
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.posHeader}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            onPress={() => setShowCart(true)}
-            style={[styles.cartBtn, { backgroundColor: colors.primary }]}
-          >
-            <Text style={styles.cartBtnText}>🛒 {itemCount > 0 ? `(${itemCount})` : ''}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
+  const renderListHeader = () => (
+    <View>
       <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
 
       {categories.length > 0 && (
@@ -512,7 +530,7 @@ export default function POSScreen() {
           >
             <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
           </TouchableOpacity>
-          {categories.slice(0, 8).map(cat => (
+          {categories.slice(0, isLandscape ? 14 : 8).map(cat => (
             <TouchableOpacity
               key={cat}
               style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
@@ -521,29 +539,75 @@ export default function POSScreen() {
               <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
-            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
-              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
-            </Text>
-          </TouchableOpacity>
         </View>
       )}
 
       <View style={styles.todayRow}>
         <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
         <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+        <View style={styles.viewToggleGroup}>
+          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
+            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
+              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowSortModal(true)} style={styles.sortBtn}>
+            <Text style={[styles.sortBtnText, { color: colors.text }]}>⇅ Sort</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <RecentItems onAddToCart={addToCartIfValid} />
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.posHeader}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setShowCart(true)}
+            style={[styles.cartBtn, { backgroundColor: colors.primarySurface }]}
+          >
+            <Text style={[styles.cartBtnText, { color: colors.primary }]}>🛒 {itemCount > 0 ? `(${itemCount})` : ''}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)} statusBarTranslucent>
+        <TouchableOpacity style={styles.sortOverlay} activeOpacity={1} onPress={() => setShowSortModal(false)}>
+          <View style={[styles.sortModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sortModalTitle, { color: colors.text }]}>Sort By</Text>
+            {([['name', 'Name'], ['price_asc', 'Price: Low → High'], ['price_desc', 'Price: High → Low'], ['category', 'Category']] as const).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.sortOption, sortBy === key && { backgroundColor: colors.primarySurface }]}
+                onPress={() => { setSortBy(key); setShowSortModal(false); }}
+              >
+                <Text style={[styles.sortOptionText, { color: colors.text }, sortBy === key && { color: colors.primary, fontWeight: '700' }]}>
+                  {label}
+                </Text>
+                {sortBy === key && <Text style={{ color: colors.primary, fontWeight: '700', fontSize: FONT_SIZES.md }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {viewMode === 'list' ? (
         <FlatList
           key="list"
-          data={filteredProducts}
+          data={sortedProducts}
           keyExtractor={(item) => String(item.id)}
+          extraData={items}
+          ListHeaderComponent={renderListHeader}
           renderItem={({ item }) => (
             <ProductCard
               product={item}
+              quantity={items.find(i => i.product.id === item.id)?.quantity || 0}
               onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
             />
           )}
@@ -560,14 +624,17 @@ export default function POSScreen() {
       ) : (
         <FlatList
           key={`grid-${numColumns}`}
-          data={filteredProducts}
+          data={sortedProducts}
           keyExtractor={(item) => String(item.id)}
           numColumns={numColumns}
           columnWrapperStyle={styles.gridRow}
+          extraData={items}
+          ListHeaderComponent={renderListHeader}
           renderItem={({ item }) => (
             <ProductTile
               product={item}
               tileWidth={tileWidth}
+              quantity={items.find(i => i.product.id === item.id)?.quantity || 0}
               onAddToCart={() => addToCartIfValid(item)}
             />
           )}
@@ -583,7 +650,7 @@ export default function POSScreen() {
       )}
 
       <TouchableOpacity
-        style={[styles.loyaltyFab, { backgroundColor: colors.primary }]}
+        style={[styles.loyaltyFab, { backgroundColor: colors.primary, bottom: 12 }]}
         onPress={() => router.push('/(app)/loyalty')}
       >
         <Text style={styles.loyaltyFabText}>💳</Text>
@@ -638,16 +705,63 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  viewToggleRow: {
-    paddingHorizontal: SPACING.md + 4,
-    paddingVertical: SPACING.sm,
-    borderRadius: 10,
-    borderWidth: 1.5,
+  sortBtn: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
     borderColor: 'transparent',
+  },
+  sortBtnText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  sortOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: SPACING.xl,
+  },
+  sortModalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 16,
+    padding: SPACING.md,
+  },
+  sortModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 8,
+    marginBottom: SPACING.xs,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+  },
+  viewToggleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
     marginLeft: 'auto',
   },
+  viewToggleRow: {
+    paddingHorizontal: SPACING.md + 4,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
   viewToggleRowText: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '700',
   },
   cartBtn: {
@@ -656,7 +770,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cartBtnText: {
-    color: '#fff',
     fontWeight: '600',
     fontSize: FONT_SIZES.sm,
   },
@@ -714,6 +827,19 @@ const styles = StyleSheet.create({
   },
   emptyCartText: {
     fontSize: FONT_SIZES.md,
+    marginBottom: SPACING.md,
+  },
+  newSaleBtn: {
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  newSaleBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
   },
   checkoutSection: {
     paddingVertical: SPACING.sm,
@@ -913,7 +1039,6 @@ const styles = StyleSheet.create({
   },
   loyaltyFab: {
     position: 'absolute',
-    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

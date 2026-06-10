@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, Animated, PanResponder } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, Animated, PanResponder, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { useThemeStore } from '../../../src/store/themeStore';
 import { getDatabase } from '../../../src/database/connection';
 import { getRecipeIngredientsWithStock } from '../../../src/database/stocks';
@@ -12,8 +12,9 @@ import type { ProductWithRecipe } from '../../../src/database/stocks';
 
 export default function RecipeStocksScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const colors = useThemeStore(s => s.colors);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const [ingredients, setIngredients] = useState<ProductWithRecipe[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithRecipe | null>(null);
@@ -122,7 +123,7 @@ export default function RecipeStocksScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/inventory')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Inventory</Text>
@@ -142,7 +143,7 @@ export default function RecipeStocksScreen() {
       <FlatList
         data={ingredients}
         keyExtractor={item => String(item.id)}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 100 }]}
         refreshing={loading}
         onRefresh={fetchIngredients}
         ListFooterComponent={
@@ -223,7 +224,7 @@ export default function RecipeStocksScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
+        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
         onPress={() => router.push('/(app)/inventory/new?from=stocks')}
       >
         <Text style={styles.fabText}>+</Text>
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   list: {
-    paddingBottom: 100,
+    flexGrow: 1,
   },
   empty: {
     padding: SPACING.xl,
@@ -395,7 +396,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

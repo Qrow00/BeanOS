@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
@@ -7,12 +7,14 @@ import type { Product } from '../../types/database';
 interface ProductCardProps {
   product: Product;
   onPress?: () => void;
+  quantity?: number;
 }
 
-export default function ProductCard({ product, onPress }: ProductCardProps) {
+export default function ProductCard({ product, onPress, quantity = 0 }: ProductCardProps) {
   const colors = useThemeStore(s => s.colors);
   const outOfStock = product.stock_quantity <= 0;
   const isDrink = product.category.toLowerCase() === 'drink';
+  const inCart = quantity > 0;
 
   return (
     <TouchableOpacity
@@ -21,6 +23,15 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
       disabled={outOfStock && !onPress}
       activeOpacity={0.7}
     >
+      {inCart && (
+        <View style={[styles.tint, { backgroundColor: colors.primary }]} />
+      )}
+      {inCart && (
+        <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+          <Text style={styles.badgeText}>{quantity}</Text>
+        </View>
+      )}
+      <View style={[styles.colorDot, { backgroundColor: getProductIconColor(product.icon_color, product.category) }]} />
       <View style={styles.info}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
@@ -59,6 +70,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+    overflow: 'hidden',
+  },
+  colorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: SPACING.sm,
   },
   info: {
     flex: 1,
@@ -91,5 +109,27 @@ const styles = StyleSheet.create({
   price: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '800',
+  },
+  tint: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.12,
+    borderRadius: 12,
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+    zIndex: 10,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

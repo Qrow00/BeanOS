@@ -141,6 +141,9 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   if (!prodCols.some(c => c.name === 'initial_stock')) {
     try { await db.execAsync("ALTER TABLE products ADD COLUMN initial_stock INTEGER DEFAULT 0"); } catch {}
   }
+  if (!prodCols.some(c => c.name === 'icon_color')) {
+    try { await db.execAsync("ALTER TABLE products ADD COLUMN icon_color TEXT DEFAULT ''"); } catch {}
+  }
 
   try {
     const recipeCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(product_recipes)');
@@ -179,5 +182,106 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       'brand_logo',
       ''
     );
+  }
+
+  const existingProducts = await db.getFirstAsync<{ count: number }>(
+    'SELECT COUNT(*) as count FROM products'
+  );
+
+  if (existingProducts?.count === 0) {
+    const ingredientRows: [string, string, string, number, number, string, number][] = [
+      ['ING-001', 'Espresso Shot', 'Coffee', 0, 200, 'shot', 200],
+      ['ING-002', 'Fresh Milk', 'General', 0, 10000, 'mL', 10000],
+      ['ING-003', 'Sugar Syrup', 'General', 0, 2000, 'mL', 2000],
+      ['ING-004', 'Whipped Cream', 'General', 0, 50, 'pcs', 50],
+      ['ING-005', 'Chocolate Sauce', 'General', 0, 1000, 'mL', 1000],
+      ['ING-006', 'Vanilla Syrup', 'General', 0, 1000, 'mL', 1000],
+      ['ING-007', 'Ice Cubes', 'General', 0, 500, 'pcs', 500],
+      ['ING-008', 'Caramel Sauce', 'General', 0, 1000, 'mL', 1000],
+      ['ING-009', 'Matcha Powder', 'General', 0, 2000, 'g', 2000],
+      ['ING-010', 'Brewed Coffee', 'Coffee', 0, 5000, 'mL', 5000],
+    ];
+
+    for (const [itemId, name, category, price, stockQty, unit, initialStock] of ingredientRows) {
+      await db.runAsync(
+        'INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, is_ingredient, initial_stock, icon_color) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
+        itemId, name, category, price, stockQty, unit, initialStock, ''
+      );
+    }
+
+    const productRows: [string, string, string, number, number, string, number][] = [
+      ['BEV-001', 'Classic Espresso', 'Coffee', 90, 100, 'pcs', 100],
+      ['BEV-002', 'Café Latte', 'Coffee', 120, 100, 'pcs', 100],
+      ['BEV-003', 'Cappuccino', 'Coffee', 120, 100, 'pcs', 100],
+      ['BEV-004', 'Caramel Macchiato', 'Coffee', 135, 100, 'pcs', 100],
+      ['BEV-005', 'Spanish Latte', 'Coffee', 130, 100, 'pcs', 100],
+      ['BEV-006', 'Iced Americano', 'Coffee', 100, 100, 'pcs', 100],
+      ['BEV-007', 'Iced Matcha Latte', 'Tea', 140, 100, 'pcs', 100],
+      ['BEV-008', 'Hot Matcha Latte', 'Tea', 130, 100, 'pcs', 100],
+      ['BEV-009', 'Mocha', 'Coffee', 135, 100, 'pcs', 100],
+      ['BEV-010', 'Iced Caramel Latte', 'Coffee', 140, 100, 'pcs', 100],
+      ['PS-001', 'Croissant', 'Pastry', 75, 50, 'pcs', 50],
+      ['PS-002', 'Blueberry Muffin', 'Pastry', 65, 50, 'pcs', 50],
+      ['PS-003', 'Chocolate Chip Cookie', 'Pastry', 45, 50, 'pcs', 50],
+      ['PS-004', 'Banana Bread', 'Pastry', 55, 50, 'pcs', 50],
+      ['PS-005', 'Ensaymada', 'Pastry', 50, 50, 'pcs', 50],
+    ];
+
+    for (const [itemId, name, category, price, stockQty, unit, initialStock] of productRows) {
+      await db.runAsync(
+        'INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, is_ingredient, initial_stock, icon_color) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)',
+        itemId, name, category, price, stockQty, unit, initialStock, ''
+      );
+    }
+
+    const getId = async (itemId: string) => {
+      const row = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE item_id = ?', itemId);
+      return row?.id;
+    };
+
+    const recipeData: [string, string, number, string][] = [
+      ['BEV-001', 'ING-001', 1, 'shot'],
+      ['BEV-002', 'ING-001', 1, 'shot'],
+      ['BEV-002', 'ING-002', 200, 'mL'],
+      ['BEV-003', 'ING-001', 1, 'shot'],
+      ['BEV-003', 'ING-002', 150, 'mL'],
+      ['BEV-003', 'ING-004', 1, 'pcs'],
+      ['BEV-004', 'ING-001', 1, 'shot'],
+      ['BEV-004', 'ING-002', 200, 'mL'],
+      ['BEV-004', 'ING-006', 15, 'mL'],
+      ['BEV-004', 'ING-008', 10, 'mL'],
+      ['BEV-005', 'ING-001', 1, 'shot'],
+      ['BEV-005', 'ING-002', 200, 'mL'],
+      ['BEV-005', 'ING-003', 20, 'mL'],
+      ['BEV-006', 'ING-001', 1, 'shot'],
+      ['BEV-006', 'ING-010', 150, 'mL'],
+      ['BEV-006', 'ING-007', 5, 'pcs'],
+      ['BEV-007', 'ING-009', 15, 'g'],
+      ['BEV-007', 'ING-002', 200, 'mL'],
+      ['BEV-007', 'ING-003', 15, 'mL'],
+      ['BEV-007', 'ING-007', 5, 'pcs'],
+      ['BEV-008', 'ING-009', 15, 'g'],
+      ['BEV-008', 'ING-002', 200, 'mL'],
+      ['BEV-008', 'ING-003', 15, 'mL'],
+      ['BEV-009', 'ING-001', 1, 'shot'],
+      ['BEV-009', 'ING-002', 150, 'mL'],
+      ['BEV-009', 'ING-005', 30, 'mL'],
+      ['BEV-009', 'ING-004', 1, 'pcs'],
+      ['BEV-010', 'ING-001', 1, 'shot'],
+      ['BEV-010', 'ING-002', 200, 'mL'],
+      ['BEV-010', 'ING-008', 15, 'mL'],
+      ['BEV-010', 'ING-007', 5, 'pcs'],
+    ];
+
+    for (const [productItemId, ingredientItemId, qty, measurement] of recipeData) {
+      const productId = await getId(productItemId);
+      const ingredientId = await getId(ingredientItemId);
+      if (productId && ingredientId) {
+        await db.runAsync(
+          'INSERT INTO product_recipes (product_id, ingredient_id, quantity, measurement) VALUES (?, ?, ?, ?)',
+          productId, ingredientId, qty, measurement
+        );
+      }
+    }
   }
 }

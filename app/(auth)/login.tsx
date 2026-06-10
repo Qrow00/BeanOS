@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
@@ -17,6 +17,11 @@ export default function LoginScreen() {
   const { login, isLoading, error, isAuthenticated } = useAuthStore();
   const colors = useThemeStore(s => s.colors);
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const padding = SPACING.lg * 2;
+  const gap = SPACING.xs * 2;
+  const gridColumns = width > 800 ? 4 : width > 500 ? 3 : 2;
+  const cellWidth = Math.floor((width - padding - gap * (gridColumns - 1)) / gridColumns);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -76,7 +81,7 @@ export default function LoginScreen() {
 
         <View style={styles.grid}>
           {users.map(user => (
-            <View key={user.id} style={styles.gridCell}>
+            <View key={user.id} style={[styles.gridCell, { width: cellWidth }]}>
               <UserProfileCard
                 user={user}
                 onSelect={handleSelectUser}
@@ -101,6 +106,7 @@ const styles = StyleSheet.create({
   selectWrapper: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     padding: SPACING.lg,
   },
   pinWrapper: {
@@ -125,11 +131,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -SPACING.xs,
+    justifyContent: 'center',
   },
   gridCell: {
-    width: '50%',
-    paddingHorizontal: SPACING.xs,
+    marginHorizontal: SPACING.xs,
     marginBottom: SPACING.sm,
   },
 });

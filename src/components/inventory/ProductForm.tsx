@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Modal, FlatList, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, COLOR_PRESETS, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useProductStore } from '../../store/productStore';
 import { formatCurrency, generateItemId } from '../../utils/helpers';
@@ -37,6 +37,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
   const [barcode, setBarcode] = useState(initial?.barcode ?? '');
   const [imageUri, setImageUri] = useState(initial?.image_uri ?? '');
   const [stockUnit, setStockUnit] = useState(initial?.stock_unit ?? 'pcs');
+  const [iconColor, setIconColor] = useState(initial?.icon_color ?? '');
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showUnitModal, setShowUnitModal] = useState(false);
@@ -75,6 +76,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
       barcode: barcode.trim() || null,
       image_uri: imageUri || null,
       description: null,
+      icon_color: iconColor || null,
       item_id: initial?.item_id || generateItemId(),
     });
   };
@@ -165,6 +167,23 @@ export default function ProductForm({ initial, onSubmit, onCancel, onRecipeChang
         </Text>
       </TouchableOpacity>
       {imageUri ? <Image source={{ uri: imageUri }} style={styles.preview} /> : null}
+
+      <Text style={[styles.colorLabel, { color: colors.textSecondary }]}>Icon Color</Text>
+      <View style={styles.colorRow}>
+        <TouchableOpacity
+          style={[styles.colorSwatch, { backgroundColor: getProductIconColor(iconColor || null, category), borderColor: colors.border }]}
+          onPress={() => setIconColor('')}
+        >
+          <View style={[styles.colorSwatchInner, { backgroundColor: getProductIconColor(iconColor || null, category) }]} />
+        </TouchableOpacity>
+        {COLOR_PRESETS.map(color => (
+          <TouchableOpacity
+            key={color}
+            style={[styles.colorOption, { backgroundColor: color }, iconColor === color && styles.colorOptionSelected]}
+            onPress={() => setIconColor(color)}
+          />
+        ))}
+      </View>
 
       <View style={styles.actions}>
         <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: colors.background }]} onPress={onCancel}>
@@ -436,5 +455,45 @@ const styles = StyleSheet.create({
   unitOptionText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
+  },
+  colorLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  colorSwatch: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  colorSwatchInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  colorOption: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  colorOptionSelected: {
+    borderWidth: 3,
+    borderColor: '#FFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });

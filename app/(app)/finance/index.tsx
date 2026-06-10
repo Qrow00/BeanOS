@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
@@ -24,6 +24,8 @@ export default function FinanceScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const { isAdmin } = useAuthStore();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const { transactions, fetchTransactions, deleteTransaction, isLoading } = useTransactionStore();
   const { fetchMovements, sortedMovements, sortBy, setSortBy, isLoading: priceLoading } = usePriceHistoryStore();
   const [tab, setTab] = useState<TabType>('income');
@@ -105,7 +107,7 @@ export default function FinanceScreen() {
               data={priceMovements}
               keyExtractor={item => String(item.id)}
               renderItem={({ item }) => <PriceChangeCard item={item} />}
-              contentContainerStyle={styles.list}
+              contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
               refreshing={priceLoading}
               onRefresh={fetchMovements}
               ListEmptyComponent={
@@ -127,7 +129,7 @@ export default function FinanceScreen() {
                 onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
               />
             )}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
             refreshing={isLoading}
             onRefresh={fetchTransactions}
             ListEmptyComponent={
@@ -143,7 +145,7 @@ export default function FinanceScreen() {
 
       {isAdmin() && tab !== 'prices' && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
+          style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
           onPress={() => router.push('/(app)/finance/new')}
         >
         <Text style={styles.fabText}>+</Text>
@@ -209,7 +211,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   list: {
-    paddingBottom: 80,
+    flexGrow: 1,
   },
   empty: {
     padding: SPACING.xl,
@@ -220,7 +222,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 100,
     right: 20,
     width: 56,
     height: 56,

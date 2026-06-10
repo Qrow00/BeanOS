@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
@@ -35,6 +35,8 @@ export default function SettingsScreen() {
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
   const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
@@ -80,7 +82,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: isLandscape ? 76 : 100 }}>
         <Card style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>

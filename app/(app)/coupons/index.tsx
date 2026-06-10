@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { View, FlatList, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, FlatList, TouchableOpacity, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
@@ -10,6 +10,8 @@ import CouponCard from '../../../src/components/coupons/CouponCard';
 export default function CouponsScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
   const { coupons, fetchCoupons, deleteCoupon, isLoading } = useCouponStore();
   const { isAdmin } = useAuthStore();
 
@@ -28,7 +30,7 @@ export default function CouponsScreen() {
             onDelete={isAdmin() ? () => deleteCoupon(item.id) : undefined}
           />
         )}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
         refreshing={isLoading}
         onRefresh={fetchCoupons}
         ListEmptyComponent={
@@ -40,8 +42,8 @@ export default function CouponsScreen() {
 
       {isAdmin() && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/(app)/coupons/new')}
+        style={[styles.fab, { backgroundColor: colors.primary, bottom: isLandscape ? 76 : 100 }]}
+        onPress={() => router.push('/(app)/coupons/new')}
         >
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
@@ -56,7 +58,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   list: {
-    paddingBottom: 80,
+    flexGrow: 1,
   },
   empty: {
     padding: SPACING.xl,
@@ -67,7 +69,6 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
     right: 20,
     width: 56,
     height: 56,

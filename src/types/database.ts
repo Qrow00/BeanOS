@@ -19,6 +19,7 @@ export interface Product {
   measurement: string | null;
   is_ingredient: number;
   initial_stock: number;
+  icon_color: string | null;
   barcode: string | null;
   description: string | null;
   image_uri: string | null;

@@ -37,3 +37,31 @@ export const ROLES = {
   ADMIN: 'admin' as const,
   USER: 'user' as const,
 };
+
+export const CATEGORY_COLORS: Record<string, string> = {
+  Coffee: '#6F4E37',
+  Tea: '#4CAF50',
+  Frappe: '#FF9800',
+  Drink: '#2196F3',
+  Pastry: '#FFC107',
+  'Rice Meal': '#FF5722',
+  Pasta: '#9C27B0',
+  Snacks: '#FF6F00',
+  'Add-on': '#607D8B',
+  Merchandise: '#E91E63',
+  General: '#2563EB',
+};
+
+export const COLOR_PRESETS = [
+  '#2563EB', '#6F4E37', '#4CAF50', '#FF9800', '#2196F3',
+  '#FFC107', '#FF5722', '#9C27B0', '#FF6F00', '#607D8B',
+  '#E91E63', '#F44336', '#00BCD4', '#795548', '#333333',
+];
+
+export function getCategoryColor(category: string): string {
+  return CATEGORY_COLORS[category] || CATEGORY_COLORS.General;
+}
+
+export function getProductIconColor(icon_color: string | null | undefined, category: string): string {
+  return icon_color || getCategoryColor(category);
+}
