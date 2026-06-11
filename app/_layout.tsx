@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import * as Updates from 'expo-updates';
 import { getDatabase } from '../src/database/connection';
 import { useThemeStore } from '../src/store/themeStore';
 import { useSettingsStore } from '../src/store/settingsStore';
@@ -9,6 +10,14 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const colors = useThemeStore(s => s.colors);
   const currencySymbol = useSettingsStore(s => s.currencySymbol);
+
+  const { isUpdatePending } = Updates.useUpdates();
+
+  useEffect(() => {
+    if (isUpdatePending) {
+      Updates.reloadAsync();
+    }
+  }, [isUpdatePending]);
 
   useEffect(() => {
     (async () => {
