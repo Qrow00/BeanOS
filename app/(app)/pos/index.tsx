@@ -1,0 +1,1108 @@
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions } from 'react-native';
+import { useRouter } from 'expo-router';
+import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { useProductStore } from '../../../src/store/productStore';
+import { useCartStore } from '../../../src/store/cartStore';
+import { useAuthStore } from '../../../src/store/authStore';
+import { useThemeStore } from '../../../src/store/themeStore';
+import { getDatabase } from '../../../src/database/connection';
+import * as salesRepo from '../../../src/database/sales';
+import { generateReceiptNumber, formatCurrency, formatDate } from '../../../src/utils/helpers';
+import ProductCard from '../../../src/components/inventory/ProductCard';
+import ProductTile from '../../../src/components/pos/ProductTile';
+import CartItemComponent from '../../../src/components/pos/CartItem';
+import CartSummary from '../../../src/components/pos/CartSummary';
+import SearchBar from '../../../src/components/inventory/SearchBar';
+import RecentItems from '../../../src/components/pos/RecentItems';
+import QuantityInputModal from '../../../src/components/pos/QuantityInputModal';
+import PaymentMethodModal from '../../../src/components/pos/PaymentMethodModal';
+import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
+import ConfirmModal from '../../../src/components/ui/ConfirmModal';
+import CoffeeConfetti from '../../../src/components/pos/CoffeeConfetti';
+import type { ViewMode, PaymentMethod, HoldTransaction, Product } from '../../../src/types/database';
+import type { CartItem } from '../../../src/types/store';
+
+export default function POSScreen() {
+  const router = useRouter();
+  const colors = useThemeStore(s => s.colors);
+  const products = useProductStore(s => s.products);
+  const fetchProducts = useProductStore(s => s.fetchProducts);
+  const searchQuery = useProductStore(s => s.searchQuery);
+  const setSearchQuery = useProductStore(s => s.setSearchQuery);
+  const selectedCategory = useProductStore(s => s.selectedCategory);
+  const setSelectedCategory = useProductStore(s => s.setSelectedCategory);
+
+  const items = useCartStore(s => s.items);
+  const manualDiscount = useCartStore(s => s.manualDiscount);
+  const addItem = useCartStore(s => s.addItem);
+  const removeItem = useCartStore(s => s.removeItem);
+  const updateQuantity = useCartStore(s => s.updateQuantity);
+  const clearCart = useCartStore(s => s.clearCart);
+  const setManualDiscount = useCartStore(s => s.setManualDiscount);
+  const clearManualDiscount = useCartStore(s => s.clearManualDiscount);
+  const paymentMethod = useCartStore(s => s.paymentMethod);
+  const setPaymentMethod = useCartStore(s => s.setPaymentMethod);
+  const holdCart = useCartStore(s => s.holdCart);
+  const getHeldTransactions = useCartStore(s => s.getHeldTransactions);
+  const restoreCart = useCartStore(s => s.restoreCart);
+  const deleteHeldTransaction = useCartStore(s => s.deleteHeldTransaction);
+  const { user } = useAuthStore();
+
+  const [showCart, setShowCart] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showQuantityModal, setShowQuantityModal] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [discountInput, setDiscountInput] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [cartTab, setCartTab] = useState<'cart' | 'held'>('cart');
+  const [holds, setHolds] = useState<HoldTransaction[]>([]);
+  const [holdsLoading, setHoldsLoading] = useState(false);
+  const [holdLabel, setHoldLabel] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'price_asc' | 'price_desc' | 'category'>('category');
+  const [showSortModal, setShowSortModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isLandscape = screenWidth > screenHeight;
+  const numColumns = isLandscape ? 6 : 3;
+  const tileWidth = (screenWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
+
+  const filteredProducts = useMemo(() => {
+    let filtered = products.filter(p => !p.is_ingredient);
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.item_id.toLowerCase().includes(q) ||
+        (p.barcode && p.barcode.toLowerCase().includes(q))
+      );
+    }
+    if (selectedCategory) {
+      filtered = filtered.filter(p => p.category === selectedCategory);
+    }
+    return filtered;
+  }, [products, searchQuery, selectedCategory]);
+
+  const sortedProducts = useMemo(() => {
+    const list = [...filteredProducts];
+    if (sortBy === 'price_asc') list.sort((a, b) => a.price - b.price);
+    else if (sortBy === 'price_desc') list.sort((a, b) => b.price - a.price);
+    else if (sortBy === 'category') list.sort((a, b) => {
+      if (a.category === b.category) return a.name.localeCompare(b.name);
+      if (a.category === 'Pastry') return 1;
+      if (b.category === 'Pastry') return -1;
+      return a.category.localeCompare(b.category);
+    });
+    else list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [filteredProducts, sortBy]);
+
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category));
+    return Array.from(cats).sort();
+  }, [products]);
+
+  const subtotal = useCartStore(s => s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0));
+  const discount = useCartStore(s => {
+    if (!s.manualDiscount) return 0;
+    const sub = s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    if (s.manualDiscount.type === 'percentage') return sub * (s.manualDiscount.value / 100);
+    return Math.min(s.manualDiscount.value, sub);
+  });
+  const total = useCartStore(s => {
+    const sub = s.items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    if (!s.manualDiscount) return sub;
+    const disc = s.manualDiscount.type === 'percentage' ? sub * (s.manualDiscount.value / 100) : Math.min(s.manualDiscount.value, sub);
+    return sub - disc;
+  });
+  const itemCount = useCartStore(s => s.items.reduce((sum, i) => sum + i.quantity, 0));
+
+  const [receiptData, setReceiptData] = useState<{
+    receiptNumber: string;
+    items: CartItem[];
+    subtotal: number;
+    discount: number;
+    total: number;
+    paymentMethod: PaymentMethod;
+    amountTendered: number;
+    change: number;
+  } | null>(null);
+
+  const [quantityTarget, setQuantityTarget] = useState<{ productId: number; current: number; max: number } | null>(null);
+  const [todayTotal, setTodayTotal] = useState(0);
+  const [pendingRestoreHold, setPendingRestoreHold] = useState<HoldTransaction | null>(null);
+  const [pendingDeleteHold, setPendingDeleteHold] = useState<HoldTransaction | null>(null);
+
+  useEffect(() => {
+    fetchProducts();
+    loadTodayTotal();
+  }, []);
+
+  const refreshHolds = async () => {
+    setHoldsLoading(true);
+    try {
+      const result = await getHeldTransactions();
+      setHolds(result);
+    } catch {} finally {
+      setHoldsLoading(false);
+    }
+  };
+
+  const loadTodayTotal = async () => {
+    try {
+      const db = await getDatabase();
+      const sales = await salesRepo.getTodaySales(db);
+      const total = sales.reduce((sum, s) => sum + s.total, 0);
+      setTodayTotal(total);
+    } catch {}
+  };
+
+  const handleHoldSave = async () => {
+    await holdCart(holdLabel.trim() || 'Held Cart');
+    setHoldLabel('');
+    setCartTab('held');
+    refreshHolds();
+  };
+
+  const handleHoldRestore = (hold: HoldTransaction) => {
+    setPendingRestoreHold(hold);
+  };
+
+  const handleHoldDelete = (hold: HoldTransaction) => {
+    setPendingDeleteHold(hold);
+  };
+
+  const confirmRestore = () => {
+    const hold = pendingRestoreHold;
+    if (!hold) return;
+    restoreCart(hold);
+    deleteHeldTransaction(hold.id);
+    setCartTab('cart');
+    setPendingRestoreHold(null);
+  };
+
+  const confirmDelete = async () => {
+    const hold = pendingDeleteHold;
+    if (!hold) return;
+    await deleteHeldTransaction(hold.id);
+    refreshHolds();
+    setPendingDeleteHold(null);
+  };
+
+  const handleCheckout = async (method: PaymentMethod, amountTendered: number) => {
+    if (items.length === 0) return;
+    setProcessing(true);
+    try {
+      const db = await getDatabase();
+      const receiptNumber = generateReceiptNumber();
+
+      await salesRepo.createSale(
+        db,
+        {
+          receipt_number: receiptNumber,
+          user_id: user!.id,
+          coupon_id: null,
+          subtotal,
+          discount_amount: discount,
+          total,
+          payment_method: method,
+        },
+        items.map(i => ({
+          product_id: i.product.id,
+          quantity: i.quantity,
+          unit_price: i.product.price,
+          total_price: i.product.price * i.quantity,
+        }))
+      );
+
+      const change = method === 'cash' ? Math.max(0, amountTendered - total) : 0;
+
+      setReceiptData({
+        receiptNumber,
+        items: [...items],
+        subtotal,
+        discount,
+        total,
+        paymentMethod: method,
+        amountTendered: method === 'cash' ? amountTendered : total,
+        change,
+      });
+
+      setShowPaymentModal(false);
+      clearCart();
+      fetchProducts();
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to complete sale');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleQuantityTap = (productId: number, current: number, max: number) => {
+    setQuantityTarget({ productId, current, max });
+    setShowQuantityModal(true);
+  };
+
+  const handleQuantityApply = (qty: number) => {
+    if (quantityTarget) {
+      updateQuantity(quantityTarget.productId, qty);
+    }
+  };
+
+  const handleNewSale = () => {
+    setReceiptData(null);
+    setShowConfetti(false);
+  };
+
+  const addToCartIfValid = useCallback(async (product: any, showCart?: boolean) => {
+    addItem(product);
+    if (showCart) setShowCart(true);
+
+    const db = await getDatabase();
+    const recipe = await db.getAllAsync<{ ingredient_id: number }>('SELECT ingredient_id FROM product_recipes WHERE product_id = ?', product.id);
+    const isDrinkCat = ['Drink', 'Coffee', 'Tea', 'Frappe'].includes(product.category);
+    if (recipe.length > 0) {
+      const missing = await db.getFirstAsync<{ id: number }>(
+        'SELECT pr.id FROM product_recipes pr LEFT JOIN products p ON p.id = pr.ingredient_id WHERE pr.product_id = ? AND p.id IS NULL LIMIT 1',
+        product.id
+      );
+      if (missing) {
+        removeItem(product.id);
+        Alert.alert('Recipe Broken', 'This product has a recipe with deleted ingredients. Edit the product to fix or remove the recipe before selling.');
+        return;
+      }
+    } else if (isDrinkCat) {
+      removeItem(product.id);
+      Alert.alert('Recipe Missing', 'This product expects a recipe but has none. Add ingredients to the recipe before selling.');
+      return;
+    }
+  }, [addItem, removeItem, setShowCart]);
+
+  const handleApplyDiscount = () => {
+    const value = parseFloat(discountInput);
+    if (isNaN(value) || value <= 0) {
+      Alert.alert('Invalid', 'Enter a valid discount value');
+      return;
+    }
+    if (discountType === 'percentage' && value > 100) {
+      Alert.alert('Invalid', 'Percentage cannot exceed 100%');
+      return;
+    }
+    setManualDiscount(discountType, value);
+    setShowDiscountModal(false);
+    setDiscountInput('');
+  };
+
+  const renderListHeader = useCallback(() => (
+    <View>
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
+
+      {categories.length > 0 && (
+        <View style={styles.categoryRow}>
+          <TouchableOpacity
+            style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setSelectedCategory(null)}
+          >
+            <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
+          </TouchableOpacity>
+          {categories.slice(0, isLandscape ? 14 : 8).map(cat => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+            >
+              <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.todayRow}>
+        <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
+        <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+        <View style={styles.viewToggleGroup}>
+          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
+            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
+              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowSortModal(true)} style={styles.sortBtn}>
+            <Text style={[styles.sortBtnText, { color: colors.text }]}>⇅ Sort</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <RecentItems onAddToCart={addToCartIfValid} />
+    </View>
+  ), [searchQuery, setSearchQuery, categories, colors, selectedCategory, setSelectedCategory, isLandscape, todayTotal, viewMode, setViewMode, setShowSortModal, addToCartIfValid]);
+
+  const keyExtractor = useCallback((item: Product) => String(item.id), []);
+
+  const renderListItem = useCallback(({ item }: { item: Product }) => (
+    <ProductCard
+      product={item}
+      onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
+    />
+  ), [addToCartIfValid]);
+
+  const renderGridItem = useCallback(({ item }: { item: Product }) => (
+    <ProductTile
+      product={item}
+      tileWidth={tileWidth}
+      onAddToCart={() => addToCartIfValid(item)}
+    />
+  ), [addToCartIfValid, tileWidth]);
+
+  if (receiptData) {
+    return (
+      <View style={{ flex: 1 }}>
+        <ReceiptScreen
+          receiptNumber={receiptData.receiptNumber}
+          items={receiptData.items}
+          subtotal={receiptData.subtotal}
+          discount={receiptData.discount}
+          total={receiptData.total}
+          paymentMethod={receiptData.paymentMethod}
+          amountTendered={receiptData.amountTendered}
+          change={receiptData.change}
+          cashierName={user?.display_name || user?.username || ''}
+          onNewSale={handleNewSale}
+        />
+        {showConfetti && <CoffeeConfetti />}
+      </View>
+    );
+  }
+
+  const tabBarHeight = isLandscape ? 56 : 80;
+
+  if (showCart) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: tabBarHeight - 50 }]}>
+        <View style={styles.cartHeader}>
+          <TouchableOpacity onPress={() => setShowCart(false)}>
+            <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
+          </TouchableOpacity>
+          <Text style={[styles.cartTitle, { color: colors.text }]}>Cart ({itemCount})</Text>
+          {cartTab === 'cart' && (
+            <TouchableOpacity onPress={() => { clearCart(); }}>
+              <Text style={[styles.clearBtn, { color: colors.danger }]}>Clear</Text>
+            </TouchableOpacity>
+          )}
+          {cartTab === 'held' && (
+            <TouchableOpacity onPress={() => { setCartTab('cart'); }}>
+              <Text style={[styles.clearBtn, { color: colors.primary }]}>Back</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.tab, cartTab === 'cart' && { backgroundColor: colors.primary }]}
+            onPress={() => setCartTab('cart')}
+          >
+            <Text style={[styles.tabText, { color: cartTab === 'cart' ? '#fff' : colors.text }]}>
+              Cart ({itemCount})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, cartTab === 'held' && { backgroundColor: colors.primary }]}
+            onPress={() => { refreshHolds(); setCartTab('held'); }}
+          >
+            <Text style={[styles.tabText, { color: cartTab === 'held' ? '#fff' : colors.text }]}>
+              Held ({holds.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {cartTab === 'cart' ? (
+          <>
+            <FlatList
+              data={items}
+              keyExtractor={(item) => String(item.product.id)}
+              style={{ flex: 1 }}
+              renderItem={({ item }) => (
+                <CartItemComponent
+                  item={item}
+                  onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
+                  onRemove={() => removeItem(item.product.id)}
+                  onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
+                />
+              )}
+              contentContainerStyle={styles.cartList}
+              ListEmptyComponent={
+                <View style={styles.emptyCart}>
+                  <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>Cart is empty</Text>
+                  <TouchableOpacity
+                    style={[styles.newSaleBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => setShowCart(false)}
+                  >
+                    <Text style={styles.newSaleBtnText}>New Sale</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+            />
+
+            {items.length > 0 && (
+              <View style={[styles.checkoutSection, { borderTopColor: colors.border }]}>
+                <View style={styles.discountRow}>
+                  <TouchableOpacity
+                    style={[styles.discountBtn, { borderColor: colors.primary }]}
+                    onPress={() => { setDiscountType('percentage'); setDiscountInput(''); setShowDiscountModal(true); }}
+                  >
+                    <Text style={[styles.discountBtnText, { color: colors.primary }]}>Discount</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.discountBtn, { borderColor: colors.primary, marginLeft: 'auto' }]}
+                    onPress={handleHoldSave}
+                  >
+                    <Text style={[styles.discountBtnText, { color: colors.primary }]}>Hold</Text>
+                  </TouchableOpacity>
+                  {manualDiscount && (
+                    <TouchableOpacity onPress={clearManualDiscount}>
+                      <Text style={[styles.removeDiscount, { color: colors.danger }]}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {manualDiscount && (
+                  <Text style={[styles.appliedDiscount, { color: colors.success }]}>
+                    Discount: {manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)}
+                  </Text>
+                )}
+                <CartSummary
+                  subtotal={subtotal}
+                  discount={discount}
+                  total={total}
+                  itemCount={itemCount}
+                  discountLabel={manualDiscount ? (manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)) : null}
+                />
+                <TouchableOpacity
+                  style={[styles.payBtn, { backgroundColor: colors.primary, marginTop: SPACING.sm }]}
+                  onPress={() => setShowPaymentModal(true)}
+                >
+                  <Text style={styles.payBtnText}>Pay {formatCurrency(total)}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </>
+        ) : (
+          <View style={styles.heldContainer}>
+            {items.length > 0 && (
+              <View style={[styles.holdSaveSection, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.holdSaveLabel, { color: colors.textSecondary }]}>Hold current cart</Text>
+                <TextInput
+                  style={[styles.holdInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  value={holdLabel}
+                  onChangeText={setHoldLabel}
+                  placeholder="e.g. Customer Walk-in #1"
+                  placeholderTextColor={colors.textSecondary}
+                />
+                <TouchableOpacity
+                  style={[styles.holdSaveBtn, { backgroundColor: colors.primary }]}
+                  onPress={handleHoldSave}
+                >
+                  <Text style={styles.holdSaveBtnText}>Save & Hold</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <FlatList
+              data={holds}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <View style={[styles.heldCard, { borderBottomColor: colors.border }]}>
+                  <View style={styles.heldInfo}>
+                    <Text style={[styles.heldLabel, { color: colors.text }]}>{item.label}</Text>
+                    <Text style={[styles.heldMeta, { color: colors.textSecondary }]}>
+                      {item.item_count} items • {formatCurrency(item.total)}
+                    </Text>
+                    <Text style={[styles.heldDate, { color: colors.disabled }]}>{formatDate(item.created_at)}</Text>
+                  </View>
+                  <View style={styles.heldActions}>
+                    <TouchableOpacity
+                      style={[styles.resumeBtn, { backgroundColor: colors.primary }]}
+                      onPress={() => handleHoldRestore(item)}
+                    >
+                      <Text style={styles.resumeBtnText}>Resume</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleHoldDelete(item)}>
+                      <Text style={[styles.heldDelete, { color: colors.danger }]}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              contentContainerStyle={styles.heldList}
+              refreshing={holdsLoading}
+              onRefresh={refreshHolds}
+              ListEmptyComponent={
+                <View style={styles.emptyCart}>
+                  <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>No held transactions</Text>
+                </View>
+              }
+            />
+          </View>
+        )}
+
+        <QuantityInputModal
+          visible={showQuantityModal}
+          currentQuantity={quantityTarget?.current ?? 1}
+          maxQuantity={quantityTarget?.max ?? 999}
+          onApply={handleQuantityApply}
+          onClose={() => setShowQuantityModal(false)}
+        />
+
+        <PaymentMethodModal
+          visible={showPaymentModal}
+          total={total}
+          selectedMethod={paymentMethod}
+          onSelect={setPaymentMethod}
+          onConfirm={handleCheckout}
+          onClose={() => setShowPaymentModal(false)}
+        />
+
+        <ConfirmModal
+          visible={pendingRestoreHold !== null}
+          title="Restore Cart"
+          message={`Restore "${pendingRestoreHold?.label}"?\nCurrent cart will be replaced.`}
+          confirmLabel="Restore"
+          onConfirm={confirmRestore}
+          onCancel={() => setPendingRestoreHold(null)}
+        />
+
+        <ConfirmModal
+          visible={pendingDeleteHold !== null}
+          title="Delete"
+          message={`Delete "${pendingDeleteHold?.label}"?`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDeleteHold(null)}
+        />
+
+        {showDiscountModal && (
+          <View style={styles.discountOverlay}>
+            <View style={[styles.discountModal, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.discountTitle, { color: colors.text }]}>Apply Discount</Text>
+
+              <View style={styles.typeToggle}>
+                <TouchableOpacity
+                  style={[styles.typeBtn, discountType === 'percentage' && { backgroundColor: colors.primary }]}
+                  onPress={() => setDiscountType('percentage')}
+                >
+                  <Text style={[styles.typeBtnText, { color: discountType === 'percentage' ? '#fff' : colors.text }]}>%</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeBtn, discountType === 'fixed' && { backgroundColor: colors.primary }]}
+                  onPress={() => setDiscountType('fixed')}
+                >
+                  <Text style={[styles.typeBtnText, { color: discountType === 'fixed' ? '#fff' : colors.text }]}>₱</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={[styles.discountInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                keyboardType="decimal-pad"
+                placeholder={discountType === 'percentage' ? 'Enter percentage (1-100)' : 'Enter amount'}
+                placeholderTextColor={colors.textSecondary}
+                value={discountInput}
+                onChangeText={setDiscountInput}
+              />
+
+              <TouchableOpacity style={[styles.applyBtn, { backgroundColor: colors.primary }]} onPress={handleApplyDiscount}>
+                <Text style={styles.applyBtnText}>Apply</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
+                <Text style={[styles.closeDiscount, { color: colors.primary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.posHeader}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            onPress={() => setShowCart(true)}
+            style={[styles.cartBtn, { backgroundColor: colors.primarySurface }]}
+          >
+            <Text style={[styles.cartBtnText, { color: colors.primary }]}>🛒 {itemCount > 0 ? `(${itemCount})` : ''}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)} statusBarTranslucent>
+        <TouchableOpacity style={styles.sortOverlay} activeOpacity={1} onPress={() => setShowSortModal(false)}>
+          <View style={[styles.sortModalContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sortModalTitle, { color: colors.text }]}>Sort By</Text>
+            {([['name', 'Name'], ['price_asc', 'Price: Low → High'], ['price_desc', 'Price: High → Low'], ['category', 'Category']] as const).map(([key, label]) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.sortOption, sortBy === key && { backgroundColor: colors.primarySurface }]}
+                onPress={() => { setSortBy(key); setShowSortModal(false); }}
+              >
+                <Text style={[styles.sortOptionText, { color: colors.text }, sortBy === key && { color: colors.primary, fontWeight: '700' }]}>
+                  {label}
+                </Text>
+                {sortBy === key && <Text style={{ color: colors.primary, fontWeight: '700', fontSize: FONT_SIZES.md }}>✓</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {viewMode === 'list' ? (
+        <FlatList
+          key="list"
+          data={sortedProducts}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={renderListHeader}
+          renderItem={renderListItem}
+          contentContainerStyle={styles.productList}
+          refreshing={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {searchQuery ? 'No products found' : 'No products available'}
+              </Text>
+            </View>
+          }
+        />
+      ) : (
+        <FlatList
+          key={`grid-${numColumns}`}
+          data={sortedProducts}
+          keyExtractor={keyExtractor}
+          numColumns={numColumns}
+          columnWrapperStyle={styles.gridRow}
+          ListHeaderComponent={renderListHeader}
+          renderItem={renderGridItem}
+          contentContainerStyle={styles.productList}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                {searchQuery ? 'No products found' : 'No products available'}
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      <TouchableOpacity
+        style={[styles.loyaltyFab, { backgroundColor: colors.primary, bottom: 12 }]}
+        onPress={() => router.push('/(app)/loyalty')}
+      >
+        <Text style={styles.loyaltyFabText}>💳</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: SPACING.md,
+  },
+  posHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  posTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  todayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  todayLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  todayValue: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  backBtn: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+
+  sortBtn: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  sortBtnText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  sortOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: SPACING.xl,
+  },
+  sortModalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 16,
+    padding: SPACING.md,
+  },
+  sortModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 8,
+    marginBottom: SPACING.xs,
+  },
+  sortOptionText: {
+    flex: 1,
+    fontSize: FONT_SIZES.md,
+  },
+  viewToggleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    marginLeft: 'auto',
+  },
+  viewToggleRow: {
+    paddingHorizontal: SPACING.md + 4,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  viewToggleRowText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  cartBtn: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 8,
+  },
+  cartBtnText: {
+    fontWeight: '600',
+    fontSize: FONT_SIZES.sm,
+  },
+  categoryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryChip: {
+    paddingHorizontal: SPACING.sm + 4,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '500',
+  },
+  productList: {
+    paddingBottom: 20,
+  },
+  gridRow: {
+    gap: SPACING.sm,
+  },
+  empty: {
+    padding: SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: FONT_SIZES.md,
+  },
+  cartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  cartTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  clearBtn: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  cartList: {
+    paddingBottom: SPACING.sm,
+  },
+  emptyCart: {
+    padding: SPACING.xl,
+    alignItems: 'center',
+  },
+  emptyCartText: {
+    fontSize: FONT_SIZES.md,
+    marginBottom: SPACING.md,
+  },
+  newSaleBtn: {
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  newSaleBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  checkoutSection: {
+    paddingVertical: SPACING.sm,
+    borderTopWidth: 1,
+  },
+  discountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  discountBtn: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 8,
+    borderWidth: 1.5,
+  },
+  discountBtnText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  removeDiscount: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+  },
+  appliedDiscount: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginTop: SPACING.xs,
+  },
+  payBtn: {
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  tabText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  heldContainer: {
+    flex: 1,
+  },
+  holdSaveSection: {
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    marginBottom: SPACING.sm,
+  },
+  holdSaveLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: SPACING.xs,
+  },
+  holdInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    marginBottom: SPACING.sm,
+  },
+  holdSaveBtn: {
+    height: 40,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  holdSaveBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  heldList: {
+    paddingBottom: 20,
+  },
+  heldCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+  },
+  heldInfo: {
+    flex: 1,
+  },
+  heldLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
+  },
+  heldMeta: {
+    fontSize: FONT_SIZES.xs,
+  },
+  heldDate: {
+    fontSize: 10,
+  },
+  heldActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  resumeBtn: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: 6,
+  },
+  resumeBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '700',
+  },
+  heldDelete: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    padding: SPACING.xs,
+  },
+  discountOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  discountModal: {
+    borderRadius: 16,
+    padding: SPACING.lg,
+    alignItems: 'center',
+  },
+  discountTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+    marginBottom: SPACING.md,
+  },
+  typeToggle: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  typeBtn: {
+    width: 60,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  typeBtnText: {
+    fontSize: FONT_SIZES.lg,
+    fontWeight: '700',
+  },
+  discountInput: {
+    width: '100%',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
+  applyBtn: {
+    width: '100%',
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  applyBtnText: {
+    color: '#fff',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+  },
+  closeDiscount: {
+    fontWeight: '600',
+    fontSize: FONT_SIZES.md,
+  },
+  loyaltyFab: {
+    position: 'absolute',
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  loyaltyFabText: {
+    fontSize: 24,
+  },
+});
