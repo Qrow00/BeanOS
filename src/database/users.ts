@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { User, UserInput } from '../types/database';
-import { hashPin } from '../utils/helpers';
+import { hashPin, hashPinLegacy, generateSalt } from '../utils/helpers';
 
 export async function getAllUsers(db: SQLiteDatabase): Promise<User[]> {
   return db.getAllAsync<User>('SELECT * FROM users ORDER BY username');
@@ -15,11 +15,13 @@ export async function getUserByUsername(db: SQLiteDatabase, username: string): P
 }
 
 export async function createUser(db: SQLiteDatabase, input: UserInput): Promise<void> {
-  const pin_hash = hashPin(input.pin_hash);
+  const salt = await generateSalt();
+  const pin_hash = await hashPin(input.pin_hash, salt);
   await db.runAsync(
-    'INSERT INTO users (username, pin_hash, role, display_name) VALUES (?, ?, ?, ?)',
+    'INSERT INTO users (username, pin_hash, salt, role, display_name) VALUES (?, ?, ?, ?, ?)',
     input.username,
     pin_hash,
+    salt,
     input.role,
     input.display_name
   );
@@ -35,8 +37,20 @@ export async function updateUser(
 
   if (input.username !== undefined) { fields.push('username = ?'); values.push(input.username); }
   if (input.pin_hash !== undefined) {
-    fields.push('pin_hash = ?');
-    values.push(hashPin(input.pin_hash));
+    const existing = await db.getFirstAsync<{ salt: string }>('SELECT salt FROM users WHERE id = ?', id);
+    if (existing) {
+      if (existing.salt) {
+        const newHash = await hashPin(input.pin_hash, existing.salt);
+        fields.push('pin_hash = ?');
+        values.push(newHash);
+      } else {
+        const newSalt = await generateSalt();
+        fields.push('salt = ?');
+        values.push(newSalt);
+        fields.push('pin_hash = ?');
+        values.push(await hashPin(input.pin_hash, newSalt));
+      }
+    }
   }
   if (input.role !== undefined) { fields.push('role = ?'); values.push(input.role); }
   if (input.display_name !== undefined) { fields.push('display_name = ?'); values.push(input.display_name); }
@@ -59,6 +73,35 @@ export async function authenticateUser(
 ): Promise<User | null> {
   const user = await getUserById(db, userId);
   if (!user) return null;
-  const hash = hashPin(pin);
-  return hash === user.pin_hash ? user : null;
+
+  let lastError = '';
+
+  try {
+    if (user.salt) {
+      const salted = await hashPin(pin, user.salt);
+      if (salted === user.pin_hash) {
+        console.log(`[auth] OK salted: user=${user.username} salt=${user.salt.slice(0, 6)}...`);
+        return user;
+      }
+      lastError = `salted mismatch`;
+    } else {
+      lastError = `no salt`;
+    }
+  } catch (e: any) {
+    lastError = `hashPin threw: ${e?.message ?? e}`;
+  }
+
+  try {
+    const legacy = hashPinLegacy(pin);
+    if (legacy === user.pin_hash) {
+      console.log(`[auth] OK legacy: user=${user.username}`);
+      return user;
+    }
+    lastError += ` | legacy mismatch`;
+  } catch (e: any) {
+    lastError += ` | hashPinLegacy threw: ${e?.message ?? e}`;
+  }
+
+  console.log(`[auth] FAIL: user=${user.username} salt=${user.salt ? user.salt.slice(0, 6) + '...' : '(empty)'} pin_hash=${user.pin_hash.slice(0, 8)}... err=${lastError}`);
+  return null;
 }

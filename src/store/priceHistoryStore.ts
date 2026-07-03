@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getDatabase } from '../database/connection';
-import { getIngredientPriceMovements } from '../database/priceHistory';
+import { getAllPriceMovements } from '../database/priceHistory';
 import type { PriceMovement } from '../database/priceHistory';
 
 type SortBy = 'price' | 'name' | 'quantity' | 'date';
@@ -23,7 +23,7 @@ export const usePriceHistoryStore = create<PriceHistoryState>((set, get) => ({
     set({ isLoading: true });
     try {
       const db = await getDatabase();
-      const movements = await getIngredientPriceMovements(db);
+      const movements = await getAllPriceMovements(db);
       set({ movements, isLoading: false });
     } catch {
       set({ isLoading: false });

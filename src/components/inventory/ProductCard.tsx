@@ -15,7 +15,6 @@ function ProductCard({ product, onPress }: ProductCardProps) {
   const colors = useThemeStore(s => s.colors);
   const quantity = useCartStore(s => s.items.find(i => i.product.id === product.id)?.quantity ?? 0);
   const outOfStock = product.stock_quantity <= 0;
-  const isDrink = product.category.toLowerCase() === 'drink';
   const inCart = quantity > 0;
 
   return (
@@ -38,19 +37,13 @@ function ProductCard({ product, onPress }: ProductCardProps) {
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
           {outOfStock && <Text style={[styles.outBadge, { color: colors.danger }]}>Out</Text>}
-          {isDrink && <Text style={[styles.recipeBadge, { color: colors.primary }]}>📋</Text>}
         </View>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {product.category} • {product.item_id}
         </Text>
         {!outOfStock && (
           <Text style={[styles.stock, { color: colors.textSecondary }]}>
-            Initial Stock: {product.initial_stock}
-          </Text>
-        )}
-        {!outOfStock && (
-          <Text style={[styles.stock, { color: colors.textSecondary }]}>
-            Current Stock: {product.stock_quantity}
+            Stock: {product.stock_quantity}
           </Text>
         )}
       </View>
@@ -98,9 +91,6 @@ const styles = StyleSheet.create({
   outBadge: {
     fontSize: 10,
     fontWeight: '700',
-  },
-  recipeBadge: {
-    fontSize: 12,
   },
   meta: {
     fontSize: FONT_SIZES.xs,

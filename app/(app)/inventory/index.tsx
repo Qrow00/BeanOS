@@ -43,14 +43,6 @@ export default function InventoryScreen() {
         <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
       </View>
 
-      <TouchableOpacity
-        style={[styles.stocksBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => router.push('/(app)/inventory/stocks')}
-      >
-        <Ionicons name="cube-outline" size={18} color={colors.primary} />
-        <Text style={[styles.stocksBtnText, { color: colors.primary }]}>Recipe Stocks</Text>
-      </TouchableOpacity>
-
       {categories.length > 0 && (
         <View style={styles.categoryRow}>
           <TouchableOpacity
@@ -157,19 +149,5 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '600',
     lineHeight: 30,
-  },
-  stocksBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: SPACING.sm,
-    marginVertical: SPACING.sm,
-  },
-  stocksBtnText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
   },
 });

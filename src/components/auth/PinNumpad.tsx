@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
 import type { ThemeColors } from '../../store/themeStore';
 import type { User } from '../../types/database';
+import { useAuthStore } from '../../store/authStore';
 import { SPACING, FONT_SIZES } from '../../utils/constants';
 
 interface PinNumpadProps {
@@ -15,7 +16,30 @@ interface PinNumpadProps {
 
 export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoading, error }: PinNumpadProps) {
   const [pin, setPin] = useState('');
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const lockTimer = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  const failedAttempts = useAuthStore(s => s.failedAttempts);
+
+  useEffect(() => {
+    const attempt = failedAttempts[user.id];
+    if (attempt && Date.now() < attempt.lockedUntil) {
+      const tick = () => {
+        const rem = Math.ceil((attempt.lockedUntil - Date.now()) / 1000);
+        if (rem <= 0) {
+          setLockoutRemaining(0);
+          clearInterval(lockTimer.current);
+        } else {
+          setLockoutRemaining(rem);
+        }
+      };
+      tick();
+      lockTimer.current = setInterval(tick, 1000);
+      return () => clearInterval(lockTimer.current);
+    }
+    setLockoutRemaining(0);
+  }, [failedAttempts, user.id]);
 
   const shake = useCallback(() => {
     Animated.sequence([
@@ -35,6 +59,7 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
   }, [error, shake]);
 
   const handlePress = (key: string) => {
+    if (lockoutRemaining > 0) return;
     if (key === 'backspace') {
       setPin(prev => prev.slice(0, -1));
       return;
@@ -75,7 +100,11 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
           </View>
         </View>
 
-        <Text style={[styles.prompt, { color: colors.textSecondary }]}>Enter PIN</Text>
+        {lockoutRemaining > 0 ? (
+          <Text style={[styles.prompt, { color: colors.danger }]}>Locked. Try again in {lockoutRemaining}s</Text>
+        ) : (
+          <Text style={[styles.prompt, { color: colors.textSecondary }]}>Enter PIN</Text>
+        )}
 
         <Animated.View style={[styles.dotsRow, { transform: [{ translateX: shakeAnim }] }]}>
           {[0, 1, 2, 3].map(i => (
@@ -90,7 +119,7 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
           ))}
         </Animated.View>
 
-        {error && (
+        {error && !lockoutRemaining && (
           <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
         )}
 
@@ -106,7 +135,7 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
                     style={[styles.numpadKey, { backgroundColor: colors.surface, borderColor: colors.border }]}
                     onPress={() => handlePress(key)}
                     activeOpacity={0.6}
-                    disabled={isLoading}
+                    disabled={isLoading || lockoutRemaining > 0}
                   >
                     {key === 'backspace' ? (
                       <Text style={[styles.numpadKeyText, { color: colors.text, fontSize: 22 }]}>⌫</Text>

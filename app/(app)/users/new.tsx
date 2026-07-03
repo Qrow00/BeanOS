@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
+import { useAuthStore } from '../../../src/store/authStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Input from '../../../src/components/ui/Input';
 import Button from '../../../src/components/ui/Button';
@@ -11,7 +12,12 @@ export default function NewUserScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const colors = useThemeStore(s => s.colors);
+  const { isAdmin } = useAuthStore();
   const { addUser, updateUser, fetchUsers, isLoading } = useUserStore();
+
+  useEffect(() => {
+    if (!isAdmin()) router.back();
+  }, []);
   const isEditing = !!params.id;
 
   const [username, setUsername] = useState('');

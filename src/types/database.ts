@@ -2,6 +2,7 @@ export interface User {
   id: number;
   username: string;
   pin_hash: string;
+  salt: string;
   role: 'admin' | 'user';
   display_name: string;
   created_at: string;
@@ -16,9 +17,6 @@ export interface Product {
   price: number;
   stock_quantity: number;
   stock_unit: string;
-  measurement: string | null;
-  is_ingredient: number;
-  initial_stock: number;
   icon_color: string | null;
   barcode: string | null;
   description: string | null;
@@ -99,24 +97,11 @@ export interface Transaction {
   created_at: string;
 }
 
-export interface RecipeItem {
-  id: number;
-  product_id: number;
-  ingredient_id: number;
-  quantity: number;
-  measurement: string | null;
-}
-
-export interface RecipeItemWithName extends RecipeItem {
-  ingredient_name: string | null;
-  ingredient_category: string | null;
-}
-
 export type PaymentMethod = 'cash' | 'card' | 'gcash' | 'maya';
 export type ViewMode = 'list' | 'grid';
 
 export type ProductInput = Omit<Product, 'id' | 'created_at' | 'updated_at'>;
-export type UserInput = Omit<User, 'id' | 'created_at' | 'updated_at'>;
+export type UserInput = Omit<User, 'id' | 'salt' | 'created_at' | 'updated_at'>;
 export type CouponInput = Omit<Coupon, 'id' | 'created_at' | 'current_uses'>;
 export type SaleInput = Omit<Sale, 'id' | 'sale_date'>;
 export type SaleItemInput = Omit<SaleItem, 'id'>;

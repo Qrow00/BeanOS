@@ -38,6 +38,14 @@ export const ROLES = {
   USER: 'user' as const,
 };
 
+export const PIN_ITERATIONS = 5;
+export const RATE_LIMIT = {
+  LOCK_AFTER: 3,
+  LOCK_DURATION_MS: 30000,
+  HARD_LOCK_AFTER: 10,
+  HARD_LOCK_DURATION_MS: 300000,
+};
+
 export const CATEGORY_COLORS: Record<string, string> = {
   Coffee: '#6F4E37',
   Tea: '#4CAF50',

@@ -2,12 +2,14 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
 import { useThemeStore } from '../../src/store/themeStore';
+import { useAuthStore } from '../../src/store/authStore';
 import Logo from '../../src/components/ui/Logo';
 import Card from '../../src/components/ui/Card';
 
 export default function BrandLogoScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const { isAdmin } = useAuthStore();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -23,14 +25,14 @@ export default function BrandLogoScreen() {
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Light Theme</Text>
           <View style={styles.logoContainer}>
-            <Logo size="large" editable />
+            <Logo size="large" editable={isAdmin()} />
           </View>
         </Card>
 
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Dark Theme</Text>
           <View style={styles.logoContainer}>
-            <Logo size="large" previewMode="dark" />
+            <Logo size="large" previewMode="dark" editable={isAdmin()} />
           </View>
         </Card>
       </ScrollView>

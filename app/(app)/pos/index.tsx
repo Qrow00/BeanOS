@@ -71,7 +71,7 @@ export default function POSScreen() {
   const tileWidth = (screenWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
 
   const filteredProducts = useMemo(() => {
-    let filtered = products.filter(p => !p.is_ingredient);
+    let filtered = products;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
@@ -243,6 +243,11 @@ export default function POSScreen() {
     }
   };
 
+  const addToCartIfValid = useCallback((product: any, showCart?: boolean) => {
+    addItem(product);
+    if (showCart) setShowCart(true);
+  }, [addItem, setShowCart]);
+
   const handleQuantityTap = (productId: number, current: number, max: number) => {
     setQuantityTarget({ productId, current, max });
     setShowQuantityModal(true);
@@ -258,30 +263,6 @@ export default function POSScreen() {
     setReceiptData(null);
     setShowConfetti(false);
   };
-
-  const addToCartIfValid = useCallback(async (product: any, showCart?: boolean) => {
-    addItem(product);
-    if (showCart) setShowCart(true);
-
-    const db = await getDatabase();
-    const recipe = await db.getAllAsync<{ ingredient_id: number }>('SELECT ingredient_id FROM product_recipes WHERE product_id = ?', product.id);
-    const isDrinkCat = ['Drink', 'Coffee', 'Tea', 'Frappe'].includes(product.category);
-    if (recipe.length > 0) {
-      const missing = await db.getFirstAsync<{ id: number }>(
-        'SELECT pr.id FROM product_recipes pr LEFT JOIN products p ON p.id = pr.ingredient_id WHERE pr.product_id = ? AND p.id IS NULL LIMIT 1',
-        product.id
-      );
-      if (missing) {
-        removeItem(product.id);
-        Alert.alert('Recipe Broken', 'This product has a recipe with deleted ingredients. Edit the product to fix or remove the recipe before selling.');
-        return;
-      }
-    } else if (isDrinkCat) {
-      removeItem(product.id);
-      Alert.alert('Recipe Missing', 'This product expects a recipe but has none. Add ingredients to the recipe before selling.');
-      return;
-    }
-  }, [addItem, removeItem, setShowCart]);
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountInput);

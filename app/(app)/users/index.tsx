@@ -41,7 +41,7 @@ export default function UsersScreen() {
         data={users}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => {
-          const canEdit = isAdmin() || item.role === 'user';
+          const canEdit = isAdmin();
           return (
           <TouchableOpacity
             onPress={canEdit ? () => router.push(`/(app)/users/new?id=${item.id}`) : undefined}
@@ -71,12 +71,14 @@ export default function UsersScreen() {
         onRefresh={fetchUsers}
       />
 
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
-        onPress={() => router.push('/(app)/users/new')}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+      {isAdmin() && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
+          onPress={() => router.push('/(app)/users/new')}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
