@@ -5,6 +5,7 @@ export interface AuthState {
   user: User | null;
   isLoading: boolean;
   error: string | null;
+  failedAttempts: Record<number, { count: number; lockedUntil: number }>;
   login: (userId: number, pin: string) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;

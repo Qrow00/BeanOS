@@ -76,6 +76,7 @@ export async function importFromExcel(db: SQLiteDatabase): Promise<{ added: numb
       barcode: row['Barcode'] || row['barcode'] || null,
       description: row['Description'] || row['description'] || null,
       image_uri: null,
+      icon_color: null,
     };
 
     if (existing) {

@@ -129,7 +129,8 @@ export default function SettingsScreen() {
           <TextInput
             style={[styles.storeNameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
             value={storeName}
-            onChangeText={saveStoreName}
+            onChangeText={isAdmin() ? saveStoreName : undefined}
+            editable={isAdmin()}
             placeholder="Store name"
             placeholderTextColor={colors.disabled}
           />
@@ -197,6 +198,16 @@ export default function SettingsScreen() {
         >
           <Text style={styles.actionIcon}>🏷️</Text>
           <Text style={[styles.actionTitle, { color: colors.text }]}>Brand Logo</Text>
+          <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => router.push('/(app)/printer-settings')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.actionIcon}>🖨️</Text>
+          <Text style={[styles.actionTitle, { color: colors.text }]}>Printer</Text>
           <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
         </TouchableOpacity>
 

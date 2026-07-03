@@ -113,7 +113,7 @@ export default function FinanceScreen() {
               ListEmptyComponent={
                 <View style={styles.empty}>
                   <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    No ingredient products found
+                    No products found
                   </Text>
                 </View>
               }

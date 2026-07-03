@@ -6,7 +6,6 @@ export interface PriceMovement {
   price: number;
   stock_quantity: number;
   stock_unit: string;
-  measurement: string | null;
   old_price: number | null;
   new_price: number | null;
   changed_at: string | null;
@@ -27,9 +26,9 @@ export async function recordPriceChange(
   );
 }
 
-export async function getIngredientPriceMovements(db: SQLiteDatabase): Promise<PriceMovement[]> {
+export async function getAllPriceMovements(db: SQLiteDatabase): Promise<PriceMovement[]> {
   return db.getAllAsync<PriceMovement>(
-    `SELECT p.id, p.name, p.price, p.stock_quantity, p.stock_unit, p.measurement, p.created_at,
+    `SELECT p.id, p.name, p.price, p.stock_quantity, p.stock_unit, p.created_at,
             ph.old_price, ph.new_price, ph.changed_at
      FROM products p
      LEFT JOIN (
@@ -37,7 +36,6 @@ export async function getIngredientPriceMovements(db: SQLiteDatabase): Promise<P
        FROM price_history
        WHERE id IN (SELECT MAX(id) FROM price_history GROUP BY product_id)
      ) ph ON ph.product_id = p.id
-     WHERE p.is_ingredient = 1
      ORDER BY p.name`
   );
 }

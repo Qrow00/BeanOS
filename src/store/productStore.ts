@@ -75,7 +75,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   getFilteredProducts: () => {
     const { products, searchQuery, selectedCategory } = get();
-    let filtered = products.filter(p => !p.is_ingredient);
+    let filtered = products;
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();

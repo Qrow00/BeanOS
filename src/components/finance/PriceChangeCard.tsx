@@ -25,7 +25,6 @@ export default function PriceChangeCard({ item }: PriceChangeCardProps) {
         <Text style={[styles.name, { color: colors.text }]}>{item.name}</Text>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           Qty: {item.stock_quantity} {item.stock_unit}
-          {item.measurement ? ` · ${item.measurement}` : ''}
         </Text>
       </View>
       <View style={styles.right}>

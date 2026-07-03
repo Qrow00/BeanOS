@@ -29,7 +29,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (Platform.OS === 'android') {
       NavigationBar.setVisibilityAsync('hidden');
-      NavigationBar.setBehaviorAsync('overlay-swipe');
+      try { NavigationBar.setBehaviorAsync('overlay-swipe'); } catch {}
       NavigationBar.setButtonStyleAsync(themeMode === 'dark' ? 'light' : 'dark');
     }
   }, [themeMode]);
@@ -88,12 +88,12 @@ export default function AppLayout() {
         />
         <Tabs.Screen name="loyalty" options={{ href: null }} />
         <Tabs.Screen name="brand-logo" options={{ href: null }} />
+        <Tabs.Screen name="printer-settings" options={{ href: null }} />
         <Tabs.Screen name="payment-qr" options={{ href: null }} />
         <Tabs.Screen name="coupons/index" options={{ href: null }} />
         <Tabs.Screen name="coupons/new" options={{ href: null }} />
         <Tabs.Screen name="inventory/new" options={{ href: null }} />
         <Tabs.Screen name="inventory/[id]" options={{ href: null }} />
-        <Tabs.Screen name="inventory/stocks" options={{ href: null }} />
         <Tabs.Screen name="finance/new" options={{ href: null }} />
         <Tabs.Screen name="users/new" options={{ href: null }} />
         <Tabs.Screen

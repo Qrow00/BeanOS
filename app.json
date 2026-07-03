@@ -24,7 +24,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Camera is used to scan QR codes for coupons."
+        "NSCameraUsageDescription": "Camera is used to scan QR codes for coupons.",
+        "NSBluetoothAlwaysUsageDescription": "Bluetooth is used to connect to receipt printers.",
+        "NSBluetoothPeripheralUsageDescription": "Bluetooth is used to connect to receipt printers."
       }
     },
      "android": {
@@ -34,10 +36,15 @@
          "backgroundColor": "#ffffff"
        },
        "edgeToEdgeEnabled": true,
-       "permissions": [
-         "android.permission.CAMERA",
-         "android.permission.RECORD_AUDIO"
-       ]
+        "permissions": [
+          "android.permission.CAMERA",
+          "android.permission.RECORD_AUDIO",
+          "android.permission.BLUETOOTH",
+          "android.permission.BLUETOOTH_ADMIN",
+          "android.permission.BLUETOOTH_CONNECT",
+          "android.permission.BLUETOOTH_SCAN",
+          "android.permission.ACCESS_FINE_LOCATION"
+        ]
      },
     "web": {
       "favicon": "./assets/favicon.png"

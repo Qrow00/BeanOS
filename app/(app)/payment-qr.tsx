@@ -3,12 +3,14 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
 import { useThemeStore } from '../../src/store/themeStore';
+import { useAuthStore } from '../../src/store/authStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import Card from '../../src/components/ui/Card';
 
 export default function PaymentQRScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const { isAdmin } = useAuthStore();
   const { gcashQrUri, gcashCompanyName, mayaQrUri, mayaCompanyName, saveGcashQr, saveGcashCompanyName, saveMayaQr, saveMayaCompanyName } = useSettingsStore();
 
   const pickImage = async (saveFn: (uri: string) => Promise<void>) => {
@@ -41,24 +43,26 @@ export default function PaymentQRScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>GCash</Text>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code image and company name for GCash payments</Text>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>{isAdmin() ? 'Set QR code image and company name for GCash payments' : 'GCash payment QR code'}</Text>
           <TouchableOpacity
             style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
-            onPress={() => pickImage(saveGcashQr)}
+            onPress={isAdmin() ? () => pickImage(saveGcashQr) : undefined}
+            activeOpacity={isAdmin() ? 0.7 : 1}
           >
             {gcashQrUri ? (
               <Image source={{ uri: gcashQrUri }} style={styles.qrPreview} resizeMode="contain" />
             ) : (
               <View style={styles.qrPickerPlaceholder}>
                 <Text style={[styles.qrPickerIcon, { color: colors.textSecondary }]}>📱</Text>
-                <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>Tap to set QR</Text>
+                <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>No QR set</Text>
               </View>
             )}
           </TouchableOpacity>
           <TextInput
             style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
             value={gcashCompanyName}
-            onChangeText={saveGcashCompanyName}
+            onChangeText={isAdmin() ? saveGcashCompanyName : undefined}
+            editable={isAdmin()}
             placeholder="e.g. My Store GCash"
             placeholderTextColor={colors.disabled}
           />
@@ -66,24 +70,26 @@ export default function PaymentQRScreen() {
 
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Maya</Text>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code image and company name for Maya payments</Text>
+          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>{isAdmin() ? 'Set QR code image and company name for Maya payments' : 'Maya payment QR code'}</Text>
           <TouchableOpacity
             style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
-            onPress={() => pickImage(saveMayaQr)}
+            onPress={isAdmin() ? () => pickImage(saveMayaQr) : undefined}
+            activeOpacity={isAdmin() ? 0.7 : 1}
           >
             {mayaQrUri ? (
               <Image source={{ uri: mayaQrUri }} style={styles.qrPreview} resizeMode="contain" />
             ) : (
               <View style={styles.qrPickerPlaceholder}>
                 <Text style={[styles.qrPickerIcon, { color: colors.textSecondary }]}>📱</Text>
-                <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>Tap to set QR</Text>
+                <Text style={[styles.qrPickerText, { color: colors.textSecondary }]}>No QR set</Text>
               </View>
             )}
           </TouchableOpacity>
           <TextInput
             style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
             value={mayaCompanyName}
-            onChangeText={saveMayaCompanyName}
+            onChangeText={isAdmin() ? saveMayaCompanyName : undefined}
+            editable={isAdmin()}
             placeholder="e.g. My Store Maya"
             placeholderTextColor={colors.disabled}
           />

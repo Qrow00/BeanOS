@@ -42,6 +42,7 @@ export default function ProductForm({ initial, onSubmit, onCancel, submitLabel =
       barcode: barcode.trim() || null,
       image_uri: imageUri || null,
       description: null,
+      icon_color: initial?.icon_color || null,
       item_id: '',
     });
   };

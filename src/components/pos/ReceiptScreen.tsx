@@ -1,8 +1,11 @@
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useThemeStore } from '../../store/themeStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { printReceipt } from '../../services/printer';
+import Button from '../ui/Button';
 import type { CartItem } from '../../types/store';
 
 interface ReceiptScreenProps {
@@ -32,6 +35,31 @@ export default function ReceiptScreen({
 }: ReceiptScreenProps) {
   const colors = useThemeStore(s => s.colors);
   const storeName = useSettingsStore(s => s.storeName);
+  const printerConfig = useSettingsStore(s => s.printerConfig);
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      await printReceipt(printerConfig, {
+        storeName,
+        receiptNumber,
+        items,
+        subtotal,
+        discount,
+        total,
+        paymentMethod,
+        amountTendered,
+        change,
+        cashierName,
+        date: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      Alert.alert('Print Failed', err?.message || 'Could not print receipt');
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -74,6 +102,10 @@ export default function ReceiptScreen({
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>Amount: {formatCurrency(amountTendered)}</Text>
         {change > 0 && <Text style={[styles.infoText, { color: colors.textSecondary }]}>Change: {formatCurrency(change)}</Text>}
       </View>
+
+      {printerConfig.connectionType !== 'none' && (
+        <Button title={printing ? 'Printing...' : 'Print Receipt'} onPress={handlePrint} loading={printing} variant="outline" style={{ marginBottom: SPACING.sm }} />
+      )}
 
       <TouchableOpacity style={[styles.newSaleBtn, { backgroundColor: colors.primary }]} onPress={onNewSale}>
         <Text style={styles.newSaleBtnText}>New Sale</Text>
