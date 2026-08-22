@@ -23,3 +23,5 @@ declare module 'qrcode' {
   }
   export function create(text: string, options?: { errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H' }): QrCreated;
 }
+
+declare function require(id: string): any;

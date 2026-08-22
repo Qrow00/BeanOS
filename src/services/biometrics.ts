@@ -1,23 +1,36 @@
-import * as LocalAuthentication from 'expo-local-authentication';
 import { getDatabase } from '../database/connection';
+
+type LocalAuthModule = typeof import('expo-local-authentication');
+
+function localAuth(): LocalAuthModule | null {
+  try {
+    return require('expo-local-authentication');
+  } catch {
+    return null;
+  }
+}
 
 const ENABLED_KEY = 'biometric_login_enabled';
 const userKey = (userId: number) => `biometric_user_${userId}`;
 
 export async function getAuthMethodLabel(): Promise<string> {
   try {
-    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
-    if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) return 'Face ID';
-    if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) return 'Iris';
-    if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) return 'Fingerprint';
+    const LA = localAuth();
+    if (!LA) return 'Biometrics';
+    const types = await LA.supportedAuthenticationTypesAsync();
+    if (types.includes(LA.AuthenticationType.FACIAL_RECOGNITION)) return 'Face ID';
+    if (types.includes(LA.AuthenticationType.IRIS)) return 'Iris';
+    if (types.includes(LA.AuthenticationType.FINGERPRINT)) return 'Fingerprint';
   } catch {}
   return 'Biometrics';
 }
 
 export async function isDeviceCapable(): Promise<boolean> {
   try {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    const LA = localAuth();
+    if (!LA) return false;
+    const hasHardware = await LA.hasHardwareAsync();
+    const enrolled = await LA.isEnrolledAsync();
     return hasHardware && enrolled;
   } catch {
     return false;
@@ -26,7 +39,9 @@ export async function isDeviceCapable(): Promise<boolean> {
 
 export async function promptBiometric(promptMessage: string): Promise<boolean> {
   try {
-    const result = await LocalAuthentication.authenticateAsync({
+    const LA = localAuth();
+    if (!LA) return false;
+    const result = await LA.authenticateAsync({
       promptMessage,
       cancelLabel: 'Use PIN',
       disableDeviceFallback: true,
