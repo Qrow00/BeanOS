@@ -1,24 +1,15 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useTransactionStore } from '../../../src/store/transactionStore';
-import { usePriceHistoryStore } from '../../../src/store/priceHistoryStore';
-import { formatCurrency } from '../../../src/utils/helpers';
 import FinanceSummary from '../../../src/components/finance/FinanceSummary';
 import TransactionCard from '../../../src/components/finance/TransactionCard';
-import PriceChangeCard from '../../../src/components/finance/PriceChangeCard';
 
-type TabType = 'income' | 'expense' | 'prices';
-
-const SORT_OPTIONS = [
-  { key: 'name' as const, label: 'Name' },
-  { key: 'price' as const, label: 'Price' },
-  { key: 'quantity' as const, label: 'Qty' },
-  { key: 'date' as const, label: 'Date' },
-];
+type TabType = 'income' | 'expense';
 
 export default function FinanceScreen() {
   const router = useRouter();
@@ -27,7 +18,6 @@ export default function FinanceScreen() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const { transactions, fetchTransactions, deleteTransaction, isLoading } = useTransactionStore();
-  const { fetchMovements, sortedMovements, sortBy, setSortBy, isLoading: priceLoading } = usePriceHistoryStore();
   const [tab, setTab] = useState<TabType>('income');
 
   useEffect(() => {
@@ -38,26 +28,20 @@ export default function FinanceScreen() {
     fetchTransactions();
   }, []);
 
-  useEffect(() => {
-    if (tab === 'prices') fetchMovements();
-  }, [tab]);
-
   const incomeTotal = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
   const expenseTotal = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netTotal = incomeTotal - expenseTotal;
 
-  const filtered = transactions.filter(t => t.type === (tab === 'prices' ? 'income' : tab));
-  const priceMovements = sortedMovements();
+  const filtered = transactions.filter(t => t.type === tab);
 
   const tabs: { key: TabType; label: string }[] = [
     { key: 'income', label: 'Income' },
     { key: 'expense', label: 'Expenses' },
-    { key: 'prices', label: 'Prices' },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <View style={styles.container}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
         </TouchableOpacity>
@@ -66,90 +50,61 @@ export default function FinanceScreen() {
       </View>
 
       <View style={styles.content}>
-        {tab !== 'prices' && (
-          <FinanceSummary
-            incomeTotal={incomeTotal}
-            expenseTotal={expenseTotal}
-            netTotal={netTotal}
-          />
-        )}
+        <FinanceSummary
+          incomeTotal={incomeTotal}
+          expenseTotal={expenseTotal}
+          netTotal={netTotal}
+        />
 
-        <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.tabBar, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
           {tabs.map(t => (
             <TouchableOpacity
               key={t.key}
-              style={[styles.tab, tab === t.key && { backgroundColor: colors.primary }]}
+              style={[styles.tab, tab === t.key && { backgroundColor: colors.primarySurface }]}
               onPress={() => setTab(t.key)}
             >
-              <Text style={[styles.tabText, { color: tab === t.key ? '#fff' : colors.text }]}>
+              <Text style={[styles.tabText, { color: tab === t.key ? colors.primary : colors.text }]}>
                 {t.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {tab === 'prices' ? (
-          <>
-            <View style={styles.sortRow}>
-              {SORT_OPTIONS.map(opt => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[styles.sortChip, { backgroundColor: colors.surface, borderColor: colors.border }, sortBy === opt.key && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                  onPress={() => setSortBy(opt.key)}
-                >
-                  <Text style={[styles.sortChipText, { color: colors.textSecondary }, sortBy === opt.key && { color: '#fff' }]}>
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <FlatList
-              data={priceMovements}
-              keyExtractor={item => String(item.id)}
-              renderItem={({ item }) => <PriceChangeCard item={item} />}
-              contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
-              refreshing={priceLoading}
-              onRefresh={fetchMovements}
-              ListEmptyComponent={
-                <View style={styles.empty}>
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    No ingredient products found
-                  </Text>
-                </View>
-              }
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item }) => (
+            <TransactionCard
+              transaction={item}
+              onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
             />
-          </>
-        ) : (
-          <FlatList
-            data={filtered}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <TransactionCard
-                transaction={item}
-                onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
-              />
-            )}
-            contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
-            refreshing={isLoading}
-            onRefresh={fetchTransactions}
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  No {tab} entries yet
-                </Text>
-              </View>
-            }
-          />
-        )}
+          )}
+          contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
+          refreshing={isLoading}
+          onRefresh={fetchTransactions}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                No {tab} entries yet
+              </Text>
+            </View>
+          }
+        />
       </View>
 
-      {isAdmin() && tab !== 'prices' && (
+      {isAdmin() && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
+          style={[styles.fab, { bottom: 96 }]}
           onPress={() => router.push('/(app)/finance/new')}
         >
-        <Text style={styles.fabText}>+</Text>
-      </TouchableOpacity>
+          <LinearGradient
+            colors={[colors.primaryGradientFrom, colors.primaryGradientTo]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <Text style={styles.fabText}>+</Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -181,7 +136,7 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    borderRadius: 10,
+    borderRadius: RADII.sm,
     borderWidth: 1,
     marginBottom: SPACING.md,
     overflow: 'hidden',
@@ -194,21 +149,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '700',
-  },
-  sortRow: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-    marginBottom: SPACING.sm,
-  },
-  sortChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  sortChipText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
   },
   list: {
     flexGrow: 1,

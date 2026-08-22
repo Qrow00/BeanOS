@@ -32,6 +32,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  loginWithBiometric: async (userId: number) => {
+    set({ isLoading: true, error: null });
+    try {
+      const db = await getDb();
+      const user = await usersRepo.getUserById(db, userId);
+      if (user) {
+        set({ isAuthenticated: true, user, isLoading: false, error: null });
+      } else {
+        set({ isLoading: false, error: 'User not found' });
+      }
+    } catch {
+      set({ isLoading: false, error: 'Login failed. Please try again.' });
+    }
+  },
+
   logout: () => {
     set({ isAuthenticated: false, user: null, error: null });
   },

@@ -2,10 +2,11 @@ import { useEffect, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
 import { requireNativeModule } from 'expo-modules-core';
 import Modal from '../ui/Modal';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { formatCurrency } from '../../utils/helpers';
+import GradientButton from '../ui/glass/GradientButton';
 
 let ExpoBrightness: any;
 try {
@@ -85,11 +86,11 @@ export default function QRPaymentModal({
         {qrUri ? (
           <Image
             source={{ uri: qrUri }}
-            style={[styles.qrImage, { borderColor: colors.border }]}
+            style={[styles.qrImage, { borderColor: colors.glassStroke, backgroundColor: '#FFFFFF' }]}
             resizeMode="contain"
           />
         ) : (
-          <View style={[styles.qrPlaceholder, { borderColor: colors.border, backgroundColor: colors.background }]}>
+          <View style={[styles.qrPlaceholder, { borderColor: colors.glassStroke, backgroundColor: colors.glassFill }]}>
             <Text style={styles.qrPlaceholderIcon}>📱</Text>
             <Text style={[styles.qrPlaceholderText, { color: colors.textSecondary }]}>QR Code not set</Text>
             <Text style={[styles.qrPlaceholderSub, { color: colors.disabled }]}>Configure in Settings</Text>
@@ -104,16 +105,10 @@ export default function QRPaymentModal({
           {formatCurrency(total)}
         </Text>
 
-        <TouchableOpacity
-          style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
-          onPress={onConfirm}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.confirmBtnText}>Confirm Payment</Text>
-        </TouchableOpacity>
+        <GradientButton title="Confirm Payment" onPress={onConfirm} style={{ alignSelf: 'stretch' }} />
 
         <TouchableOpacity
-          style={[styles.cancelBtn, { borderColor: colors.border }]}
+          style={[styles.cancelBtn, { borderColor: colors.glassStroke, backgroundColor: colors.glassFill }]}
           onPress={onClose}
           activeOpacity={0.7}
         >
@@ -132,14 +127,14 @@ const styles = StyleSheet.create({
   qrImage: {
     width: 260,
     height: 260,
-    borderRadius: 12,
+    borderRadius: RADII.md,
     borderWidth: 1,
     marginBottom: SPACING.md,
   },
   qrPlaceholder: {
     width: 260,
     height: 260,
-    borderRadius: 12,
+    borderRadius: RADII.md,
     borderWidth: 2,
     borderStyle: 'dashed',
     alignItems: 'center',
@@ -169,26 +164,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: SPACING.lg,
   },
-  confirmBtn: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.sm,
-  },
-  confirmBtnText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-  },
   cancelBtn: {
     width: '100%',
     height: 44,
-    borderRadius: 10,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    marginTop: SPACING.sm,
   },
   cancelBtnText: {
     fontSize: FONT_SIZES.md,

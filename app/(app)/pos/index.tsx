@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { SPACING, FONT_SIZES, RADII, GLASS, getCategoryColor } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
 import { useCartStore } from '../../../src/store/cartStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useThemeStore } from '../../../src/store/themeStore';
+import { useSettingsStore } from '../../../src/store/settingsStore';
 import { getDatabase } from '../../../src/database/connection';
 import * as salesRepo from '../../../src/database/sales';
 import { generateReceiptNumber, formatCurrency, formatDate } from '../../../src/utils/helpers';
@@ -20,11 +20,16 @@ import PaymentMethodModal from '../../../src/components/pos/PaymentMethodModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import CoffeeConfetti from '../../../src/components/pos/CoffeeConfetti';
+import LoyaltyScanModal from '../../../src/components/pos/LoyaltyScanModal';
+import RedeemPointsModal from '../../../src/components/pos/RedeemPointsModal';
+import GlassPanel from '../../../src/components/ui/glass/GlassPanel';
+import GlassChip from '../../../src/components/ui/glass/GlassChip';
+import GradientButton from '../../../src/components/ui/glass/GradientButton';
+import { useBreakpoint } from '../../../src/hooks/useBreakpoint';
 import type { ViewMode, PaymentMethod, HoldTransaction, Product } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 
 export default function POSScreen() {
-  const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const products = useProductStore(s => s.products);
   const fetchProducts = useProductStore(s => s.fetchProducts);
@@ -47,12 +52,21 @@ export default function POSScreen() {
   const getHeldTransactions = useCartStore(s => s.getHeldTransactions);
   const restoreCart = useCartStore(s => s.restoreCart);
   const deleteHeldTransaction = useCartStore(s => s.deleteHeldTransaction);
+  const loyaltyCustomer = useCartStore(s => s.loyaltyCustomer);
+  const pointsToRedeem = useCartStore(s => s.pointsToRedeem);
+  const setLoyaltyCustomer = useCartStore(s => s.setLoyaltyCustomer);
+  const clearLoyaltyCustomer = useCartStore(s => s.clearLoyaltyCustomer);
+  const setPointsToRedeem = useCartStore(s => s.setPointsToRedeem);
+  const loyaltyEarnRate = useSettingsStore(s => s.loyaltyEarnRate);
+  const loyaltyPointValue = useSettingsStore(s => s.loyaltyPointValue);
   const { user } = useAuthStore();
 
   const [showCart, setShowCart] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showLoyaltyModal, setShowLoyaltyModal] = useState(false);
+  const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountInput, setDiscountInput] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -65,13 +79,15 @@ export default function POSScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const isLandscape = screenWidth > screenHeight;
-  const numColumns = isLandscape ? 6 : 3;
-  const tileWidth = (screenWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
+  const bp = useBreakpoint();
+  const { width: screenWidth } = useWindowDimensions();
+  const cartPaneWidth = Math.min(430, Math.max(330, Math.round(screenWidth * 0.38)));
+  const productsAreaWidth = bp.posSplitView ? screenWidth - cartPaneWidth - SPACING.md * 4 : screenWidth;
+  const numColumns = productsAreaWidth >= 700 ? 5 : productsAreaWidth >= 500 ? 4 : 3;
+  const tileWidth = (productsAreaWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
 
   const filteredProducts = useMemo(() => {
-    let filtered = products.filter(p => !p.is_ingredient);
+    let filtered = [...products];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       filtered = filtered.filter(p =>
@@ -120,6 +136,13 @@ export default function POSScreen() {
   });
   const itemCount = useCartStore(s => s.items.reduce((sum, i) => sum + i.quantity, 0));
 
+  const maxRedeemablePoints = loyaltyPointValue > 0
+    ? Math.min(Math.floor(total / loyaltyPointValue), loyaltyCustomer?.points_balance ?? 0)
+    : 0;
+  const effectiveRedeemPoints = Math.min(pointsToRedeem, maxRedeemablePoints);
+  const pointsDiscount = effectiveRedeemPoints * loyaltyPointValue;
+  const finalTotal = Math.max(0, total - pointsDiscount);
+
   const [receiptData, setReceiptData] = useState<{
     receiptNumber: string;
     items: CartItem[];
@@ -129,6 +152,10 @@ export default function POSScreen() {
     paymentMethod: PaymentMethod;
     amountTendered: number;
     change: number;
+    customerName: string | null;
+    pointsEarned: number;
+    pointsRedeemed: number;
+    remainingBalance: number;
   } | null>(null);
 
   const [quantityTarget, setQuantityTarget] = useState<{ productId: number; current: number; max: number } | null>(null);
@@ -199,36 +226,54 @@ export default function POSScreen() {
       const db = await getDatabase();
       const receiptNumber = generateReceiptNumber();
 
+      const pointsEarned = loyaltyCustomer && finalTotal > 0 && loyaltyEarnRate > 0
+        ? Math.floor(finalTotal / loyaltyEarnRate)
+        : 0;
+      const loyalty = loyaltyCustomer
+        ? { customerId: loyaltyCustomer.id, pointsEarned, pointsRedeemed: effectiveRedeemPoints }
+        : undefined;
+      const remainingBalance = loyaltyCustomer
+        ? Math.max(0, loyaltyCustomer.points_balance - effectiveRedeemPoints + pointsEarned)
+        : 0;
+
       await salesRepo.createSale(
         db,
         {
           receipt_number: receiptNumber,
           user_id: user!.id,
           coupon_id: null,
+          customer_id: loyaltyCustomer?.id ?? null,
           subtotal,
           discount_amount: discount,
-          total,
+          total: finalTotal,
           payment_method: method,
+          points_earned: pointsEarned,
+          points_redeemed: effectiveRedeemPoints,
         },
         items.map(i => ({
           product_id: i.product.id,
           quantity: i.quantity,
           unit_price: i.product.price,
           total_price: i.product.price * i.quantity,
-        }))
+        })),
+        loyalty
       );
 
-      const change = method === 'cash' ? Math.max(0, amountTendered - total) : 0;
+      const change = method === 'cash' ? Math.max(0, amountTendered - finalTotal) : 0;
 
       setReceiptData({
         receiptNumber,
         items: [...items],
         subtotal,
         discount,
-        total,
+        total: finalTotal,
         paymentMethod: method,
-        amountTendered: method === 'cash' ? amountTendered : total,
+        amountTendered: method === 'cash' ? amountTendered : finalTotal,
         change,
+        customerName: loyaltyCustomer?.name ?? null,
+        pointsEarned,
+        pointsRedeemed: effectiveRedeemPoints,
+        remainingBalance,
       });
 
       setShowPaymentModal(false);
@@ -259,29 +304,10 @@ export default function POSScreen() {
     setShowConfetti(false);
   };
 
-  const addToCartIfValid = useCallback(async (product: any, showCart?: boolean) => {
+  const addToCartIfValid = useCallback((product: any, openCart?: boolean) => {
     addItem(product);
-    if (showCart) setShowCart(true);
-
-    const db = await getDatabase();
-    const recipe = await db.getAllAsync<{ ingredient_id: number }>('SELECT ingredient_id FROM product_recipes WHERE product_id = ?', product.id);
-    const isDrinkCat = ['Drink', 'Coffee', 'Tea', 'Frappe'].includes(product.category);
-    if (recipe.length > 0) {
-      const missing = await db.getFirstAsync<{ id: number }>(
-        'SELECT pr.id FROM product_recipes pr LEFT JOIN products p ON p.id = pr.ingredient_id WHERE pr.product_id = ? AND p.id IS NULL LIMIT 1',
-        product.id
-      );
-      if (missing) {
-        removeItem(product.id);
-        Alert.alert('Recipe Broken', 'This product has a recipe with deleted ingredients. Edit the product to fix or remove the recipe before selling.');
-        return;
-      }
-    } else if (isDrinkCat) {
-      removeItem(product.id);
-      Alert.alert('Recipe Missing', 'This product expects a recipe but has none. Add ingredients to the recipe before selling.');
-      return;
-    }
-  }, [addItem, removeItem, setShowCart]);
+    if (openCart) setShowCart(true);
+  }, [addItem, setShowCart]);
 
   const handleApplyDiscount = () => {
     const value = parseFloat(discountInput);
@@ -298,50 +324,51 @@ export default function POSScreen() {
     setDiscountInput('');
   };
 
-  const renderListHeader = useCallback(() => (
+  const keyExtractor = useCallback((item: Product) => String(item.id), []);
+
+  const renderListHeader = useCallback((includeTodayRow: boolean) => (
     <View>
       <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
 
       {categories.length > 0 && (
         <View style={styles.categoryRow}>
-          <TouchableOpacity
-            style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
-          </TouchableOpacity>
-          {categories.slice(0, isLandscape ? 14 : 8).map(cat => (
-            <TouchableOpacity
+          <GlassChip label="All" active={!selectedCategory} onPress={() => setSelectedCategory(null)} />
+          {categories.slice(0, bp.posSplitView ? 12 : 8).map(cat => (
+            <GlassChip
               key={cat}
-              style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              label={cat}
+              color={getCategoryColor(cat)}
+              active={selectedCategory === cat}
               onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-            >
-              <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-            </TouchableOpacity>
+            />
           ))}
         </View>
       )}
 
-      <View style={styles.todayRow}>
-        <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>Today's Sales</Text>
-        <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
-        <View style={styles.viewToggleGroup}>
-          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={styles.viewToggleRow}>
-            <Text style={[styles.viewToggleRowText, { color: colors.text }]}>
-              {viewMode === 'list' ? '▦ Grid' : '☰ List'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowSortModal(true)} style={styles.sortBtn}>
-            <Text style={[styles.sortBtnText, { color: colors.text }]}>⇅ Sort</Text>
-          </TouchableOpacity>
+      {includeTodayRow && (
+        <View style={styles.todayRow}>
+          <View style={[styles.todayPill, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+            <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>TODAY</Text>
+            <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+          </View>
+          <View style={styles.viewToggleGroup}>
+            <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+              <Text style={[styles.pillBtnText, { color: colors.text }]}>
+                {viewMode === 'list' ? '▦ Grid' : '☰ List'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowSortModal(true)} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+              <Text style={[styles.pillBtnText, { color: colors.text }]}>⇅ Sort</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
 
       <RecentItems onAddToCart={addToCartIfValid} />
     </View>
-  ), [searchQuery, setSearchQuery, categories, colors, selectedCategory, setSelectedCategory, isLandscape, todayTotal, viewMode, setViewMode, setShowSortModal, addToCartIfValid]);
+  ), [searchQuery, setSearchQuery, categories, colors, selectedCategory, setSelectedCategory, bp.posSplitView, todayTotal, viewMode, addToCartIfValid]);
 
-  const keyExtractor = useCallback((item: Product) => String(item.id), []);
+  const listHeader = useMemo(() => renderListHeader(!bp.posSplitView), [renderListHeader, bp.posSplitView]);
 
   const renderListItem = useCallback(({ item }: { item: Product }) => (
     <ProductCard
@@ -358,294 +385,346 @@ export default function POSScreen() {
     />
   ), [addToCartIfValid, tileWidth]);
 
-  if (receiptData) {
-    return (
-      <View style={{ flex: 1 }}>
-        <ReceiptScreen
-          receiptNumber={receiptData.receiptNumber}
-          items={receiptData.items}
-          subtotal={receiptData.subtotal}
-          discount={receiptData.discount}
-          total={receiptData.total}
-          paymentMethod={receiptData.paymentMethod}
-          amountTendered={receiptData.amountTendered}
-          change={receiptData.change}
-          cashierName={user?.display_name || user?.username || ''}
-          onNewSale={handleNewSale}
-        />
-        {showConfetti && <CoffeeConfetti />}
-      </View>
+  const renderProductList = () =>
+    viewMode === 'list' ? (
+      <FlatList
+        key="list"
+        data={sortedProducts}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={listHeader}
+        renderItem={renderListItem}
+        contentContainerStyle={styles.productList}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {searchQuery ? 'No products found' : 'No products available'}
+            </Text>
+          </View>
+        }
+      />
+    ) : (
+      <FlatList
+        key={`grid-${numColumns}`}
+        data={sortedProducts}
+        keyExtractor={keyExtractor}
+        numColumns={numColumns}
+        columnWrapperStyle={styles.gridRow}
+        ListHeaderComponent={listHeader}
+        renderItem={renderGridItem}
+        contentContainerStyle={styles.productList}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              {searchQuery ? 'No products found' : 'No products available'}
+            </Text>
+          </View>
+        }
+      />
     );
-  }
 
-  const tabBarHeight = isLandscape ? 56 : 80;
+  const renderCartContent = (inPane: boolean) => (
+    <View style={inPane ? styles.paneInner : styles.cartScreenInner}>
+      <View style={[styles.segWrap, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+        <TouchableOpacity
+          style={[styles.segBtn, cartTab === 'cart' && { backgroundColor: colors.primarySurface }, cartTab === 'cart' && styles.segBtnActive]}
+          onPress={() => setCartTab('cart')}
+        >
+          <Text style={[styles.segText, { color: cartTab === 'cart' ? colors.primary : colors.textSecondary }]}>
+            Cart ({itemCount})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segBtn, cartTab === 'held' && { backgroundColor: colors.primarySurface }, cartTab === 'held' && styles.segBtnActive]}
+          onPress={() => { refreshHolds(); setCartTab('held'); }}
+        >
+          <Text style={[styles.segText, { color: cartTab === 'held' ? colors.primary : colors.textSecondary }]}>
+            Held ({holds.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-  if (showCart) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: tabBarHeight - 50 }]}>
-        <View style={styles.cartHeader}>
-          <TouchableOpacity onPress={() => setShowCart(false)}>
-            <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
-          </TouchableOpacity>
-          <Text style={[styles.cartTitle, { color: colors.text }]}>Cart ({itemCount})</Text>
-          {cartTab === 'cart' && (
-            <TouchableOpacity onPress={() => { clearCart(); }}>
-              <Text style={[styles.clearBtn, { color: colors.danger }]}>Clear</Text>
-            </TouchableOpacity>
-          )}
-          {cartTab === 'held' && (
-            <TouchableOpacity onPress={() => { setCartTab('cart'); }}>
-              <Text style={[styles.clearBtn, { color: colors.primary }]}>Back</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={[styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <TouchableOpacity
-            style={[styles.tab, cartTab === 'cart' && { backgroundColor: colors.primary }]}
-            onPress={() => setCartTab('cart')}
-          >
-            <Text style={[styles.tabText, { color: cartTab === 'cart' ? '#fff' : colors.text }]}>
-              Cart ({itemCount})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, cartTab === 'held' && { backgroundColor: colors.primary }]}
-            onPress={() => { refreshHolds(); setCartTab('held'); }}
-          >
-            <Text style={[styles.tabText, { color: cartTab === 'held' ? '#fff' : colors.text }]}>
-              Held ({holds.length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {cartTab === 'cart' ? (
-          <>
-            <FlatList
-              data={items}
-              keyExtractor={(item) => String(item.product.id)}
-              style={{ flex: 1 }}
-              renderItem={({ item }) => (
-                <CartItemComponent
-                  item={item}
-                  onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
-                  onRemove={() => removeItem(item.product.id)}
-                  onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
-                />
-              )}
-              contentContainerStyle={styles.cartList}
-              ListEmptyComponent={
-                <View style={styles.emptyCart}>
-                  <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>Cart is empty</Text>
-                  <TouchableOpacity
-                    style={[styles.newSaleBtn, { backgroundColor: colors.primary }]}
-                    onPress={() => setShowCart(false)}
-                  >
-                    <Text style={styles.newSaleBtnText}>New Sale</Text>
-                  </TouchableOpacity>
-                </View>
-              }
-            />
-
-            {items.length > 0 && (
-              <View style={[styles.checkoutSection, { borderTopColor: colors.border }]}>
-                <View style={styles.discountRow}>
-                  <TouchableOpacity
-                    style={[styles.discountBtn, { borderColor: colors.primary }]}
-                    onPress={() => { setDiscountType('percentage'); setDiscountInput(''); setShowDiscountModal(true); }}
-                  >
-                    <Text style={[styles.discountBtnText, { color: colors.primary }]}>Discount</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.discountBtn, { borderColor: colors.primary, marginLeft: 'auto' }]}
-                    onPress={handleHoldSave}
-                  >
-                    <Text style={[styles.discountBtnText, { color: colors.primary }]}>Hold</Text>
-                  </TouchableOpacity>
-                  {manualDiscount && (
-                    <TouchableOpacity onPress={clearManualDiscount}>
-                      <Text style={[styles.removeDiscount, { color: colors.danger }]}>Remove</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                {manualDiscount && (
-                  <Text style={[styles.appliedDiscount, { color: colors.success }]}>
-                    Discount: {manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)}
-                  </Text>
-                )}
-                <CartSummary
-                  subtotal={subtotal}
-                  discount={discount}
-                  total={total}
-                  itemCount={itemCount}
-                  discountLabel={manualDiscount ? (manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)) : null}
-                />
-                <TouchableOpacity
-                  style={[styles.payBtn, { backgroundColor: colors.primary, marginTop: SPACING.sm }]}
-                  onPress={() => setShowPaymentModal(true)}
-                >
-                  <Text style={styles.payBtnText}>Pay {formatCurrency(total)}</Text>
-                </TouchableOpacity>
-              </View>
+      {cartTab === 'cart' ? (
+        <>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => String(item.product.id)}
+            style={{ flex: 1 }}
+            renderItem={({ item }) => (
+              <CartItemComponent
+                item={item}
+                onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
+                onRemove={() => removeItem(item.product.id)}
+                onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
+              />
             )}
+            contentContainerStyle={styles.cartList}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyCart}>
+                <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>Cart is empty</Text>
+                {!inPane && (
+                  <GradientButton title="Browse Products" onPress={() => setShowCart(false)} height={48} glow={false} style={{ alignSelf: 'stretch' }} />
+                )}
+              </View>
+            }
+          />
 
-          </>
-        ) : (
-          <View style={styles.heldContainer}>
-            {items.length > 0 && (
-              <View style={[styles.holdSaveSection, { borderBottomColor: colors.border }]}>
-                <Text style={[styles.holdSaveLabel, { color: colors.textSecondary }]}>Hold current cart</Text>
-                <TextInput
-                  style={[styles.holdInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                  value={holdLabel}
-                  onChangeText={setHoldLabel}
-                  placeholder="e.g. Customer Walk-in #1"
-                  placeholderTextColor={colors.textSecondary}
-                />
+          {items.length > 0 && (
+            <View style={styles.checkoutSection}>
+              <View style={styles.discountRow}>
                 <TouchableOpacity
-                  style={[styles.holdSaveBtn, { backgroundColor: colors.primary }]}
+                  style={[styles.outlineBtn, { borderColor: colors.primary, backgroundColor: colors.primarySurface }]}
+                  onPress={() => { setDiscountType('percentage'); setDiscountInput(''); setShowDiscountModal(true); }}
+                >
+                  <Text style={[styles.outlineBtnText, { color: colors.primary }]}>Discount</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.outlineBtn, { borderColor: colors.secondaryAccent, backgroundColor: colors.glassFill }]}
                   onPress={handleHoldSave}
                 >
-                  <Text style={styles.holdSaveBtnText}>Save & Hold</Text>
+                  <Text style={[styles.outlineBtnText, { color: colors.secondaryAccent }]}>Hold</Text>
                 </TouchableOpacity>
+                {manualDiscount && (
+                  <TouchableOpacity onPress={clearManualDiscount} style={styles.removeDiscountWrap}>
+                    <Text style={[styles.removeDiscount, { color: colors.danger }]}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+                {!loyaltyCustomer && (
+                  <TouchableOpacity
+                    style={[styles.outlineBtn, styles.attachMemberBtn, { borderColor: colors.glassStroke, backgroundColor: colors.glassFill }]}
+                    onPress={() => setShowLoyaltyModal(true)}
+                  >
+                    <Text style={[styles.outlineBtnText, { color: colors.primary }]}>＋ Attach Member</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            )}
-
-            <FlatList
-              data={holds}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
-                <View style={[styles.heldCard, { borderBottomColor: colors.border }]}>
-                  <View style={styles.heldInfo}>
-                    <Text style={[styles.heldLabel, { color: colors.text }]}>{item.label}</Text>
-                    <Text style={[styles.heldMeta, { color: colors.textSecondary }]}>
-                      {item.item_count} items • {formatCurrency(item.total)}
+              {manualDiscount && (
+                <Text style={[styles.appliedDiscount, { color: colors.success }]}>
+                  Discount: {manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)}
+                </Text>
+              )}
+              {loyaltyCustomer && (
+                <View style={[styles.memberRow, { borderColor: colors.glassStroke }]}>
+                  <View style={styles.memberInfo}>
+                    <Text style={[styles.memberName, { color: colors.text }]} numberOfLines={1}>👤 {loyaltyCustomer.name}</Text>
+                    <Text style={[styles.memberBalance, { color: colors.textSecondary }]}>
+                      {loyaltyCustomer.points_balance} pts available
                     </Text>
-                    <Text style={[styles.heldDate, { color: colors.disabled }]}>{formatDate(item.created_at)}</Text>
                   </View>
-                  <View style={styles.heldActions}>
-                    <TouchableOpacity
-                      style={[styles.resumeBtn, { backgroundColor: colors.primary }]}
-                      onPress={() => handleHoldRestore(item)}
-                    >
-                      <Text style={styles.resumeBtnText}>Resume</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleHoldDelete(item)}>
-                      <Text style={[styles.heldDelete, { color: colors.danger }]}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity
+                    style={[styles.redeemBtn, { borderColor: colors.secondaryAccent, backgroundColor: colors.glassFill }]}
+                    onPress={() => setShowRedeemModal(true)}
+                    disabled={maxRedeemablePoints <= 0}
+                  >
+                    <Text style={[styles.redeemBtnText, { color: maxRedeemablePoints > 0 ? colors.secondaryAccent : colors.disabled }]}>
+                      {effectiveRedeemPoints > 0 ? 'Edit' : 'Redeem'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={clearLoyaltyCustomer} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={[styles.removeDiscount, { color: colors.danger }]}>✕</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-              contentContainerStyle={styles.heldList}
-              refreshing={holdsLoading}
-              onRefresh={refreshHolds}
-              ListEmptyComponent={
-                <View style={styles.emptyCart}>
-                  <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>No held transactions</Text>
-                </View>
-              }
-            />
-          </View>
-        )}
-
-        <QuantityInputModal
-          visible={showQuantityModal}
-          currentQuantity={quantityTarget?.current ?? 1}
-          maxQuantity={quantityTarget?.max ?? 999}
-          onApply={handleQuantityApply}
-          onClose={() => setShowQuantityModal(false)}
-        />
-
-        <PaymentMethodModal
-          visible={showPaymentModal}
-          total={total}
-          selectedMethod={paymentMethod}
-          onSelect={setPaymentMethod}
-          onConfirm={handleCheckout}
-          onClose={() => setShowPaymentModal(false)}
-        />
-
-        <ConfirmModal
-          visible={pendingRestoreHold !== null}
-          title="Restore Cart"
-          message={`Restore "${pendingRestoreHold?.label}"?\nCurrent cart will be replaced.`}
-          confirmLabel="Restore"
-          onConfirm={confirmRestore}
-          onCancel={() => setPendingRestoreHold(null)}
-        />
-
-        <ConfirmModal
-          visible={pendingDeleteHold !== null}
-          title="Delete"
-          message={`Delete "${pendingDeleteHold?.label}"?`}
-          confirmLabel="Delete"
-          destructive
-          onConfirm={confirmDelete}
-          onCancel={() => setPendingDeleteHold(null)}
-        />
-
-        {showDiscountModal && (
-          <View style={styles.discountOverlay}>
-            <View style={[styles.discountModal, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.discountTitle, { color: colors.text }]}>Apply Discount</Text>
-
-              <View style={styles.typeToggle}>
-                <TouchableOpacity
-                  style={[styles.typeBtn, discountType === 'percentage' && { backgroundColor: colors.primary }]}
-                  onPress={() => setDiscountType('percentage')}
-                >
-                  <Text style={[styles.typeBtnText, { color: discountType === 'percentage' ? '#fff' : colors.text }]}>%</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.typeBtn, discountType === 'fixed' && { backgroundColor: colors.primary }]}
-                  onPress={() => setDiscountType('fixed')}
-                >
-                  <Text style={[styles.typeBtnText, { color: discountType === 'fixed' ? '#fff' : colors.text }]}>₱</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                style={[styles.discountInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                keyboardType="decimal-pad"
-                placeholder={discountType === 'percentage' ? 'Enter percentage (1-100)' : 'Enter amount'}
-                placeholderTextColor={colors.textSecondary}
-                value={discountInput}
-                onChangeText={setDiscountInput}
+              {effectiveRedeemPoints > 0 && (
+                <Text style={[styles.appliedDiscount, { color: colors.success }]}>
+                  Points: -{formatCurrency(pointsDiscount)} ({effectiveRedeemPoints} pts)
+                </Text>
+              )}
+              <CartSummary
+                subtotal={subtotal}
+                discount={discount}
+                total={finalTotal}
+                itemCount={itemCount}
+                discountLabel={manualDiscount ? (manualDiscount.type === 'percentage' ? `${manualDiscount.value}%` : formatCurrency(manualDiscount.value)) : null}
+                pointsDiscount={pointsDiscount}
               />
-
-              <TouchableOpacity style={[styles.applyBtn, { backgroundColor: colors.primary }]} onPress={handleApplyDiscount}>
-                <Text style={styles.applyBtnText}>Apply</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => setShowDiscountModal(false)}>
-                <Text style={[styles.closeDiscount, { color: colors.primary }]}>Cancel</Text>
-              </TouchableOpacity>
+              <GradientButton
+                title={`Pay ${formatCurrency(finalTotal)}`}
+                onPress={() => setShowPaymentModal(true)}
+                loading={processing}
+                height={52}
+                style={{ marginTop: SPACING.sm }}
+              />
             </View>
-          </View>
-        )}
-      </View>
-    );
-  }
+          )}
+        </>
+      ) : (
+        <View style={styles.heldContainer}>
+          {items.length > 0 && (
+            <View style={styles.holdSaveSection}>
+              <Text style={[styles.holdSaveLabel, { color: colors.textSecondary }]}>HOLD CURRENT CART</Text>
+              <TextInput
+                style={[styles.holdInput, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
+                value={holdLabel}
+                onChangeText={setHoldLabel}
+                placeholder="e.g. Customer Walk-in #1"
+                placeholderTextColor={colors.disabled}
+              />
+              <GradientButton title="Save & Hold" onPress={handleHoldSave} height={42} fontSize={FONT_SIZES.sm} glow={false} />
+            </View>
+          )}
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.posHeader}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
+          <FlatList
+            data={holds}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <View style={[styles.heldCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+                <View style={styles.heldInfo}>
+                  <Text style={[styles.heldLabel, { color: colors.text }]}>{item.label}</Text>
+                  <Text style={[styles.heldMeta, { color: colors.textSecondary }]}>
+                    {item.item_count} items • {formatCurrency(item.total)}
+                  </Text>
+                  <Text style={[styles.heldDate, { color: colors.disabled }]}>{formatDate(item.created_at)}</Text>
+                </View>
+                <View style={styles.heldActions}>
+                  <TouchableOpacity
+                    style={[styles.resumeBtn, { backgroundColor: colors.primarySurface, borderColor: colors.primary }]}
+                    onPress={() => handleHoldRestore(item)}
+                  >
+                    <Text style={[styles.resumeBtnText, { color: colors.primary }]}>Resume</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleHoldDelete(item)}>
+                    <Text style={[styles.heldDelete, { color: colors.danger }]}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            contentContainerStyle={styles.heldList}
+            refreshing={holdsLoading}
+            onRefresh={refreshHolds}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyCart}>
+                <Text style={[styles.emptyCartText, { color: colors.textSecondary }]}>No held transactions</Text>
+              </View>
+            }
+          />
         </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            onPress={() => setShowCart(true)}
-            style={[styles.cartBtn, { backgroundColor: colors.primarySurface }]}
-          >
-            <Text style={[styles.cartBtnText, { color: colors.primary }]}>🛒 {itemCount > 0 ? `(${itemCount})` : ''}</Text>
+      )}
+    </View>
+  );
+
+  const renderMemberChip = () => {
+    if (loyaltyCustomer) {
+      return (
+        <View style={[styles.memberChip, { backgroundColor: colors.primarySurface, borderColor: colors.primary }]}>
+          <Text style={[styles.memberChipText, { color: colors.primary }]} numberOfLines={1}>
+            👤 {loyaltyCustomer.name} · {loyaltyCustomer.points_balance} pts
+          </Text>
+          <TouchableOpacity onPress={clearLoyaltyCustomer} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <Text style={[styles.memberChipRemove, { color: colors.primary }]}>✕</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      );
+    }
+    return (
+      <TouchableOpacity
+        style={[styles.memberChip, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
+        onPress={() => setShowLoyaltyModal(true)}
+      >
+        <Text style={[styles.memberChipText, { color: colors.textSecondary }]}>＋ Member</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderModals = () => (
+    <>
+      <QuantityInputModal
+        visible={showQuantityModal}
+        currentQuantity={quantityTarget?.current ?? 1}
+        maxQuantity={quantityTarget?.max ?? 999}
+        onApply={handleQuantityApply}
+        onClose={() => setShowQuantityModal(false)}
+      />
+
+      <PaymentMethodModal
+        visible={showPaymentModal}
+        total={finalTotal}
+        selectedMethod={paymentMethod}
+        onSelect={setPaymentMethod}
+        onConfirm={handleCheckout}
+        onClose={() => setShowPaymentModal(false)}
+      />
+
+      <LoyaltyScanModal
+        visible={showLoyaltyModal}
+        onClose={() => setShowLoyaltyModal(false)}
+        onAttach={setLoyaltyCustomer}
+      />
+
+      {loyaltyCustomer && (
+        <RedeemPointsModal
+          visible={showRedeemModal}
+          customer={loyaltyCustomer}
+          pointValue={loyaltyPointValue}
+          maxRedeemable={maxRedeemablePoints}
+          currentRedeem={effectiveRedeemPoints}
+          onApply={setPointsToRedeem}
+          onClose={() => setShowRedeemModal(false)}
+        />
+      )}
+
+      <ConfirmModal
+        visible={pendingRestoreHold !== null}
+        title="Restore Cart"
+        message={`Restore "${pendingRestoreHold?.label}"?\nCurrent cart will be replaced.`}
+        confirmLabel="Restore"
+        onConfirm={confirmRestore}
+        onCancel={() => setPendingRestoreHold(null)}
+      />
+
+      <ConfirmModal
+        visible={pendingDeleteHold !== null}
+        title="Delete"
+        message={`Delete "${pendingDeleteHold?.label}"?`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDeleteHold(null)}
+      />
+
+      <Modal visible={showDiscountModal} transparent animationType="fade" onRequestClose={() => setShowDiscountModal(false)} statusBarTranslucent>
+        <View style={[styles.centerOverlay, { backgroundColor: colors.overlay }]}>
+          <GlassPanel strong radius={RADII.xl} androidRealBlur intensity={60} style={styles.discountModal}>
+            <Text style={[styles.discountTitle, { color: colors.text }]}>Apply Discount</Text>
+
+            <View style={styles.typeToggle}>
+              <TouchableOpacity
+                style={[styles.typeBtn, { backgroundColor: discountType === 'percentage' ? colors.primarySurface : colors.glassFill, borderColor: discountType === 'percentage' ? colors.primary : colors.glassStroke }]}
+                onPress={() => setDiscountType('percentage')}
+              >
+                <Text style={[styles.typeBtnText, { color: discountType === 'percentage' ? colors.primary : colors.text }]}>%</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeBtn, { backgroundColor: discountType === 'fixed' ? colors.primarySurface : colors.glassFill, borderColor: discountType === 'fixed' ? colors.primary : colors.glassStroke }]}
+                onPress={() => setDiscountType('fixed')}
+              >
+                <Text style={[styles.typeBtnText, { color: discountType === 'fixed' ? colors.primary : colors.text }]}>₱</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={[styles.discountInput, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
+              keyboardType="decimal-pad"
+              placeholder={discountType === 'percentage' ? 'Enter percentage (1-100)' : 'Enter amount'}
+              placeholderTextColor={colors.disabled}
+              value={discountInput}
+              onChangeText={setDiscountInput}
+            />
+
+            <GradientButton title="Apply" onPress={handleApplyDiscount} height={48} style={{ alignSelf: 'stretch' }} />
+            <TouchableOpacity onPress={() => setShowDiscountModal(false)} style={styles.cancelWrap}>
+              <Text style={[styles.closeDiscount, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </GlassPanel>
+        </View>
+      </Modal>
 
       <Modal visible={showSortModal} transparent animationType="fade" onRequestClose={() => setShowSortModal(false)} statusBarTranslucent>
-        <TouchableOpacity style={styles.sortOverlay} activeOpacity={1} onPress={() => setShowSortModal(false)}>
-          <View style={[styles.sortModalContent, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity style={[styles.centerOverlay, { backgroundColor: colors.overlay }]} activeOpacity={1} onPress={() => setShowSortModal(false)}>
+          <GlassPanel strong radius={RADII.xl} androidRealBlur intensity={60} style={styles.sortModalContent}>
             <Text style={[styles.sortModalTitle, { color: colors.text }]}>Sort By</Text>
             {([['name', 'Name'], ['price_asc', 'Price: Low → High'], ['price_desc', 'Price: High → Low'], ['category', 'Category']] as const).map(([key, label]) => (
               <TouchableOpacity
@@ -659,53 +738,117 @@ export default function POSScreen() {
                 {sortBy === key && <Text style={{ color: colors.primary, fontWeight: '700', fontSize: FONT_SIZES.md }}>✓</Text>}
               </TouchableOpacity>
             ))}
-          </View>
+          </GlassPanel>
         </TouchableOpacity>
       </Modal>
+    </>
+  );
 
-      {viewMode === 'list' ? (
-        <FlatList
-          key="list"
-          data={sortedProducts}
-          keyExtractor={keyExtractor}
-          ListHeaderComponent={renderListHeader}
-          renderItem={renderListItem}
-          contentContainerStyle={styles.productList}
-          refreshing={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {searchQuery ? 'No products found' : 'No products available'}
-              </Text>
-            </View>
-          }
+  if (receiptData) {
+    return (
+      <View style={{ flex: 1 }}>
+        <ReceiptScreen
+          receiptNumber={receiptData.receiptNumber}
+          items={receiptData.items}
+          subtotal={receiptData.subtotal}
+          discount={receiptData.discount}
+          total={receiptData.total}
+          paymentMethod={receiptData.paymentMethod}
+          amountTendered={receiptData.amountTendered}
+          change={receiptData.change}
+          cashierName={user?.display_name || user?.username || ''}
+          customerName={receiptData.customerName}
+          pointsEarned={receiptData.pointsEarned}
+          pointsRedeemed={receiptData.pointsRedeemed}
+          remainingBalance={receiptData.remainingBalance}
+          onNewSale={handleNewSale}
         />
-      ) : (
-        <FlatList
-          key={`grid-${numColumns}`}
-          data={sortedProducts}
-          keyExtractor={keyExtractor}
-          numColumns={numColumns}
-          columnWrapperStyle={styles.gridRow}
-          ListHeaderComponent={renderListHeader}
-          renderItem={renderGridItem}
-          contentContainerStyle={styles.productList}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {searchQuery ? 'No products found' : 'No products available'}
-              </Text>
+        {showConfetti && <CoffeeConfetti />}
+      </View>
+    );
+  }
+
+  if (bp.posSplitView) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.splitRow}>
+          <View style={styles.productsCol}>
+            <View style={styles.posHeader}>
+              <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
+              {renderMemberChip()}
+              <View style={[styles.todayPill, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+                <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>TODAY</Text>
+                <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
+              </View>
             </View>
-          }
-        />
-      )}
+            {renderProductList()}
+          </View>
+
+          <GlassPanel
+            radius={RADII.xl}
+            androidRealBlur
+            intensity={GLASS.blurIntensityStrong}
+            style={[styles.cartPane, { width: cartPaneWidth, marginBottom: Math.max(bp.height * 0, 96) }]}
+          >
+            {renderCartContent(true)}
+          </GlassPanel>
+        </View>
+
+        {renderModals()}
+      </View>
+    );
+  }
+
+  if (showCart) {
+    return (
+      <View style={[styles.container, { paddingBottom: 92 }]}>
+        <View style={styles.cartHeader}>
+          <TouchableOpacity onPress={() => setShowCart(false)}>
+            <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
+          </TouchableOpacity>
+          <Text style={[styles.cartTitle, { color: colors.text }]}>Cart ({itemCount})</Text>
+          {cartTab === 'cart' ? (
+            <TouchableOpacity onPress={() => { clearCart(); }}>
+              <Text style={[styles.clearBtn, { color: colors.danger }]}>Clear</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => { setCartTab('cart'); }}>
+              <Text style={[styles.clearBtn, { color: colors.primary }]}>Back</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {renderCartContent(false)}
+
+        {renderModals()}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.posHeader}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.posTitle, { color: colors.text }]}>POS Terminal</Text>
+          {renderMemberChip()}
+        </View>
+      </View>
+
+      {renderProductList()}
 
       <TouchableOpacity
-        style={[styles.loyaltyFab, { backgroundColor: colors.primary, bottom: 12 }]}
-        onPress={() => router.push('/(app)/loyalty')}
+        style={[styles.cartFab, { backgroundColor: colors.primary, bottom: 96, right: SPACING.lg }]}
+        onPress={() => setShowCart(true)}
       >
-        <Text style={styles.loyaltyFabText}>💳</Text>
+        <Text style={styles.cartFabText}>🛒</Text>
+        {itemCount > 0 && (
+          <View style={[styles.cartBadge, { backgroundColor: colors.secondaryAccent }]}>
+            <Text style={styles.cartBadgeText}>{itemCount}</Text>
+          </View>
+        )}
       </TouchableOpacity>
+
+      {renderModals()}
     </View>
   );
 }
@@ -715,16 +858,36 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: SPACING.md,
   },
+  splitRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  productsCol: {
+    flex: 1,
+  },
+  cartPane: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+  paneInner: {
+    flex: 1,
+  },
+  cartScreenInner: {
+    flex: 1,
+  },
   posHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
+    flex: 1,
   },
   headerRight: {
     flexDirection: 'row',
@@ -733,117 +896,85 @@ const styles = StyleSheet.create({
   },
   posTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  todayPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+  },
+  todayLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+  todayValue: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '800',
   },
   todayRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: SPACING.sm,
     gap: SPACING.xs,
   },
-  todayLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+  viewToggleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
-  todayValue: {
-    fontSize: FONT_SIZES.sm,
+  pillBtn: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 7,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+  },
+  pillBtnText: {
+    fontSize: FONT_SIZES.xs,
     fontWeight: '700',
   },
   backBtn: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
   },
-
-  sortBtn: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  sortBtnText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
-  },
-  sortOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: SPACING.xl,
-  },
   sortModalContent: {
     width: '100%',
-    maxWidth: 320,
-    borderRadius: 16,
-    padding: SPACING.md,
+    maxWidth: 340,
+    padding: SPACING.lg,
   },
   sortModalTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: SPACING.sm,
     textAlign: 'center',
   },
   sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: SPACING.sm + 2,
     paddingHorizontal: SPACING.md,
-    borderRadius: 8,
+    borderRadius: RADII.sm,
     marginBottom: SPACING.xs,
   },
   sortOptionText: {
     flex: 1,
     fontSize: FONT_SIZES.md,
   },
-  viewToggleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    marginLeft: 'auto',
-  },
-  viewToggleRow: {
-    paddingHorizontal: SPACING.md + 4,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  viewToggleRowText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
-  },
-  cartBtn: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-  },
-  cartBtnText: {
-    fontWeight: '600',
-    fontSize: FONT_SIZES.sm,
-  },
   categoryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.xs,
     marginBottom: SPACING.sm,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryChip: {
-    paddingHorizontal: SPACING.sm + 4,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  categoryText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '500',
   },
   productList: {
-    paddingBottom: 20,
+    paddingBottom: 120,
   },
   gridRow: {
     gap: SPACING.sm,
@@ -863,11 +994,31 @@ const styles = StyleSheet.create({
   },
   cartTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   clearBtn: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '600',
+  },
+  segWrap: {
+    flexDirection: 'row',
+    borderRadius: RADII.full,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: SPACING.sm,
+  },
+  segBtn: {
+    flex: 1,
+    paddingVertical: SPACING.sm - 2,
+    alignItems: 'center',
+    borderRadius: RADII.full,
+  },
+  segBtnActive: {
+    borderWidth: 1,
+  },
+  segText: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '700',
   },
   cartList: {
     paddingBottom: SPACING.sm,
@@ -880,36 +1031,30 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     marginBottom: SPACING.md,
   },
-  newSaleBtn: {
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-  },
-  newSaleBtnText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
-  },
   checkoutSection: {
-    paddingVertical: SPACING.sm,
-    borderTopWidth: 1,
+    paddingTop: SPACING.sm,
   },
   discountRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
+    flexWrap: 'wrap',
+    marginBottom: SPACING.sm,
   },
-  discountBtn: {
+  outlineBtn: {
+    height: 34,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
+    justifyContent: 'center',
+    borderRadius: RADII.full,
     borderWidth: 1.5,
   },
-  discountBtnText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
+  outlineBtnText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  removeDiscountWrap: {
+    marginLeft: 'auto',
   },
   removeDiscount: {
     fontSize: FONT_SIZES.sm,
@@ -920,75 +1065,87 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: SPACING.xs,
   },
-  payBtn: {
-    height: 48,
-    borderRadius: 10,
+  memberChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+    maxWidth: 220,
   },
-  payBtnText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.md,
+  memberChipText: {
+    fontSize: FONT_SIZES.xs,
     fontWeight: '700',
   },
-  tabBar: {
+  memberChipRemove: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '800',
+  },
+  memberRow: {
     flexDirection: 'row',
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: SPACING.sm,
-    overflow: 'hidden',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: SPACING.sm,
     alignItems: 'center',
+    gap: SPACING.sm,
+    borderWidth: 1,
+    borderRadius: RADII.sm,
+    padding: SPACING.sm + 2,
+    marginTop: SPACING.xs,
   },
-  tabText: {
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
     fontSize: FONT_SIZES.sm,
     fontWeight: '700',
+  },
+  memberBalance: {
+    fontSize: FONT_SIZES.xs,
+  },
+  redeemBtn: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs + 2,
+    borderRadius: RADII.full,
+    borderWidth: 1.5,
+  },
+  redeemBtnText: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '800',
+  },
+  attachMemberBtn: {
+    marginLeft: 'auto',
   },
   heldContainer: {
     flex: 1,
   },
   holdSaveSection: {
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
+    paddingBottom: SPACING.sm,
     marginBottom: SPACING.sm,
   },
   holdSaveLabel: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    fontWeight: '800',
+    letterSpacing: 1.5,
     marginBottom: SPACING.xs,
   },
   holdInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: RADII.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     fontSize: FONT_SIZES.md,
     marginBottom: SPACING.sm,
   },
-  holdSaveBtn: {
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  holdSaveBtnText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
-  },
   heldList: {
     paddingBottom: 20,
+    gap: SPACING.xs,
   },
   heldCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
+    padding: SPACING.md,
+    borderRadius: RADII.md,
+    borderWidth: 1,
   },
   heldInfo: {
     flex: 1,
@@ -1011,10 +1168,10 @@ const styles = StyleSheet.create({
   resumeBtn: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.xs + 2,
-    borderRadius: 6,
+    borderRadius: RADII.full,
+    borderWidth: 1,
   },
   resumeBtnText: {
-    color: '#fff',
     fontSize: FONT_SIZES.xs,
     fontWeight: '700',
   },
@@ -1023,24 +1180,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     padding: SPACING.xs,
   },
-  discountOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  centerOverlay: {
+    flex: 1,
     justifyContent: 'center',
-    padding: SPACING.lg,
+    alignItems: 'center',
+    padding: SPACING.xl,
   },
   discountModal: {
-    borderRadius: 16,
+    width: '100%',
+    maxWidth: 360,
     padding: SPACING.lg,
     alignItems: 'center',
   },
   discountTitle: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: SPACING.md,
   },
   typeToggle: {
@@ -1049,60 +1203,65 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   typeBtn: {
-    width: 60,
-    height: 44,
-    borderRadius: 10,
+    width: 64,
+    height: 46,
+    borderRadius: RADII.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
+    borderWidth: 1.5,
   },
   typeBtnText: {
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
   },
   discountInput: {
-    width: '100%',
+    alignSelf: 'stretch',
     height: 48,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderWidth: GLASS.strokeWidth,
+    borderRadius: RADII.sm,
     paddingHorizontal: SPACING.md,
     fontSize: FONT_SIZES.md,
     textAlign: 'center',
     marginBottom: SPACING.md,
   },
-  applyBtn: {
-    width: '100%',
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.sm,
-  },
-  applyBtnText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
+  cancelWrap: {
+    marginTop: SPACING.sm,
+    padding: SPACING.xs,
   },
   closeDiscount: {
     fontWeight: '600',
     fontSize: FONT_SIZES.md,
   },
-  loyaltyFab: {
+  cartFab: {
     position: 'absolute',
-    right: 20,
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  loyaltyFabText: {
+  cartFabText: {
     fontSize: 24,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 22,
+    height: 22,
+    borderRadius: RADII.full,
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0B0B12',
   },
 });

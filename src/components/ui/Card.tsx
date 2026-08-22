@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { SPACING } from '../../utils/constants';
+import { SPACING, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 
 interface CardProps {
@@ -11,7 +11,13 @@ export default function Card({ children, style }: CardProps) {
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface }, style]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.glassFill, borderColor: colors.glassStroke },
+        style,
+      ]}
+    >
       {children}
     </View>
   );
@@ -19,13 +25,14 @@ export default function Card({ children, style }: CardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
 });

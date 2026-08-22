@@ -102,25 +102,37 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
-      CREATE TABLE IF NOT EXISTS product_recipes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        product_id INTEGER NOT NULL,
-        ingredient_id INTEGER NOT NULL,
-        quantity REAL NOT NULL CHECK(quantity > 0),
-        measurement TEXT DEFAULT '',
-        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-        FOREIGN KEY (ingredient_id) REFERENCES products(id),
-        UNIQUE(product_id, ingredient_id)
-      );
-
-    CREATE TABLE IF NOT EXISTS price_history (
+    CREATE TABLE IF NOT EXISTS customers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_id INTEGER NOT NULL,
-      old_price REAL NOT NULL,
-      new_price REAL NOT NULL,
-      changed_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      phone TEXT,
+      points_balance INTEGER NOT NULL DEFAULT 0 CHECK(points_balance >= 0),
+      lifetime_points INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS loyalty_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      sale_id INTEGER,
+      type TEXT NOT NULL CHECK(type IN ('earn', 'redeem', 'adjust')),
+      points INTEGER NOT NULL,
+      description TEXT,
+      created_by INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (customer_id) REFERENCES customers(id),
+      FOREIGN KEY (sale_id) REFERENCES sales(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+  `);
+
+  await db.execAsync(`
+    DROP TABLE IF EXISTS product_recipes;
+    DROP TABLE IF EXISTS price_history;
+    DELETE FROM products WHERE is_ingredient = 1;
   `);
 
   const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(users)');
@@ -145,12 +157,23 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
     try { await db.execAsync("ALTER TABLE products ADD COLUMN icon_color TEXT DEFAULT ''"); } catch {}
   }
 
-  try {
-    const recipeCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(product_recipes)');
-    if (!recipeCols.some(c => c.name === 'measurement')) {
-      await db.execAsync("ALTER TABLE product_recipes ADD COLUMN measurement TEXT DEFAULT ''");
-    }
-  } catch { /* table may not exist yet */ }
+  const saleCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sales)');
+  if (!saleCols.some(c => c.name === 'customer_id')) {
+    try { await db.execAsync('ALTER TABLE sales ADD COLUMN customer_id INTEGER REFERENCES customers(id)'); } catch {}
+  }
+  if (!saleCols.some(c => c.name === 'points_earned')) {
+    try { await db.execAsync('ALTER TABLE sales ADD COLUMN points_earned INTEGER DEFAULT 0'); } catch {}
+  }
+  if (!saleCols.some(c => c.name === 'points_redeemed')) {
+    try { await db.execAsync('ALTER TABLE sales ADD COLUMN points_redeemed INTEGER DEFAULT 0'); } catch {}
+  }
+
+  await db.runAsync(
+    "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('loyalty_earn_rate', '50')"
+  );
+  await db.runAsync(
+    "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('loyalty_point_value', '1')"
+  );
 
   await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('0000'), 'admin');
   await db.runAsync('UPDATE users SET pin_hash = ? WHERE username = ?', hashPin('1234'), 'user');
@@ -189,26 +212,6 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
   );
 
   if (existingProducts?.count === 0) {
-    const ingredientRows: [string, string, string, number, number, string, number][] = [
-      ['ING-001', 'Espresso Shot', 'Coffee', 0, 200, 'shot', 200],
-      ['ING-002', 'Fresh Milk', 'General', 0, 10000, 'mL', 10000],
-      ['ING-003', 'Sugar Syrup', 'General', 0, 2000, 'mL', 2000],
-      ['ING-004', 'Whipped Cream', 'General', 0, 50, 'pcs', 50],
-      ['ING-005', 'Chocolate Sauce', 'General', 0, 1000, 'mL', 1000],
-      ['ING-006', 'Vanilla Syrup', 'General', 0, 1000, 'mL', 1000],
-      ['ING-007', 'Ice Cubes', 'General', 0, 500, 'pcs', 500],
-      ['ING-008', 'Caramel Sauce', 'General', 0, 1000, 'mL', 1000],
-      ['ING-009', 'Matcha Powder', 'General', 0, 2000, 'g', 2000],
-      ['ING-010', 'Brewed Coffee', 'Coffee', 0, 5000, 'mL', 5000],
-    ];
-
-    for (const [itemId, name, category, price, stockQty, unit, initialStock] of ingredientRows) {
-      await db.runAsync(
-        'INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, is_ingredient, initial_stock, icon_color) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
-        itemId, name, category, price, stockQty, unit, initialStock, ''
-      );
-    }
-
     const productRows: [string, string, string, number, number, string, number][] = [
       ['BEV-001', 'Classic Espresso', 'Coffee', 90, 100, 'pcs', 100],
       ['BEV-002', 'Café Latte', 'Coffee', 120, 100, 'pcs', 100],
@@ -232,56 +235,6 @@ export async function initializeDatabase(db: SQLiteDatabase): Promise<void> {
         'INSERT INTO products (item_id, name, category, price, stock_quantity, stock_unit, is_ingredient, initial_stock, icon_color) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)',
         itemId, name, category, price, stockQty, unit, initialStock, ''
       );
-    }
-
-    const getId = async (itemId: string) => {
-      const row = await db.getFirstAsync<{ id: number }>('SELECT id FROM products WHERE item_id = ?', itemId);
-      return row?.id;
-    };
-
-    const recipeData: [string, string, number, string][] = [
-      ['BEV-001', 'ING-001', 1, 'shot'],
-      ['BEV-002', 'ING-001', 1, 'shot'],
-      ['BEV-002', 'ING-002', 200, 'mL'],
-      ['BEV-003', 'ING-001', 1, 'shot'],
-      ['BEV-003', 'ING-002', 150, 'mL'],
-      ['BEV-003', 'ING-004', 1, 'pcs'],
-      ['BEV-004', 'ING-001', 1, 'shot'],
-      ['BEV-004', 'ING-002', 200, 'mL'],
-      ['BEV-004', 'ING-006', 15, 'mL'],
-      ['BEV-004', 'ING-008', 10, 'mL'],
-      ['BEV-005', 'ING-001', 1, 'shot'],
-      ['BEV-005', 'ING-002', 200, 'mL'],
-      ['BEV-005', 'ING-003', 20, 'mL'],
-      ['BEV-006', 'ING-001', 1, 'shot'],
-      ['BEV-006', 'ING-010', 150, 'mL'],
-      ['BEV-006', 'ING-007', 5, 'pcs'],
-      ['BEV-007', 'ING-009', 15, 'g'],
-      ['BEV-007', 'ING-002', 200, 'mL'],
-      ['BEV-007', 'ING-003', 15, 'mL'],
-      ['BEV-007', 'ING-007', 5, 'pcs'],
-      ['BEV-008', 'ING-009', 15, 'g'],
-      ['BEV-008', 'ING-002', 200, 'mL'],
-      ['BEV-008', 'ING-003', 15, 'mL'],
-      ['BEV-009', 'ING-001', 1, 'shot'],
-      ['BEV-009', 'ING-002', 150, 'mL'],
-      ['BEV-009', 'ING-005', 30, 'mL'],
-      ['BEV-009', 'ING-004', 1, 'pcs'],
-      ['BEV-010', 'ING-001', 1, 'shot'],
-      ['BEV-010', 'ING-002', 200, 'mL'],
-      ['BEV-010', 'ING-008', 15, 'mL'],
-      ['BEV-010', 'ING-007', 5, 'pcs'],
-    ];
-
-    for (const [productItemId, ingredientItemId, qty, measurement] of recipeData) {
-      const productId = await getId(productItemId);
-      const ingredientId = await getId(ingredientItemId);
-      if (productId && ingredientId) {
-        await db.runAsync(
-          'INSERT INTO product_recipes (product_id, ingredient_id, quantity, measurement) VALUES (?, ?, ?, ?)',
-          productId, ingredientId, qty, measurement
-        );
-      }
     }
   }
 }

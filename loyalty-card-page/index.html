@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1C1917">
+<title>Loyalty Card</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: radial-gradient(circle at 20% 0%, #292524 0%, #1C1917 55%, #121110 100%);
+    color: #FAFAF9;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    min-height: 100%;
+  }
+  .brand {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #D6D3D1;
+    opacity: .75;
+    margin-bottom: 18px;
+    max-width: 320px;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .card {
+    width: 100%;
+    max-width: 340px;
+    background: #FFFFFF;
+    border-radius: 28px;
+    padding: 32px 24px 26px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+    color: #1C1917;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #F59E0B, #D97706);
+  }
+  .nickname {
+    font-size: 34px;
+    font-weight: 800;
+    color: #B45309;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+  }
+  .member-tag {
+    margin-top: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #A8A29E;
+  }
+  .qr-box {
+    margin: 22px auto 18px;
+    padding: 14px;
+    background: #fff;
+    border: 2px solid #E7E5E4;
+    border-radius: 18px;
+    display: inline-block;
+    line-height: 0;
+  }
+  .qr-box svg { width: 200px; height: 200px; display: block; }
+  .code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #1C1917;
+  }
+  .hint {
+    margin-top: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #78716C;
+  }
+  .dl-btn {
+    margin-top: 18px;
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    color: #fff;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    padding: 14px 30px;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px rgba(217,119,6,.35);
+  }
+  .dl-btn:active { transform: scale(.97); }
+  .dl-btn[disabled] { opacity: .55; }
+  .shot-or {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #A8A29E;
+  }
+  .trouble {
+    margin-top: 14px;
+    appearance: none;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: #D6D3D1;
+    text-decoration: underline;
+  }
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    background: rgba(250,250,249,.96);
+    color: #1C1917;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 11px 20px;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+    z-index: 20;
+  }
+  .toast.show { opacity: 1; }
+  .ovl {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.78);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 30;
+  }
+  .ovl.show { display: flex; }
+  .ovl img {
+    width: 100%;
+    max-width: 320px;
+    border-radius: 16px;
+    background: #fff;
+  }
+  .ovl p {
+    margin-top: 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #FCD34D;
+    text-align: center;
+    line-height: 1.5;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .55 } }
+  .error {
+    max-width: 340px;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #D6D3D1;
+  }
+  .error b { color: #FCD34D; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+<div class="ovl" id="ovl">
+  <img id="ovlImg" alt="Loyalty card">
+  <p>Press &amp; hold the image, then choose<br><b>Add to Photos</b> / <b>Download image</b></p>
+  <button class="dl-btn" id="ovlClose" style="margin-top:14px;padding:10px 26px;">Close</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var code = (params.get('c') || '').trim().toUpperCase();
+  var name = (params.get('n') || 'Member').trim();
+  var store = (params.get('s') || '').trim();
+
+  document.title = name + ' — Loyalty Card';
+  window.__cardCode = code;
+  window.__cardName = name;
+  window.__cardStore = store;
+  window.__cardPng = null;
+
+  var app = document.getElementById('app');
+
+  if (!/^LC-[A-Z0-9]{4,12}$/.test(code)) {
+    app.innerHTML =
+      '<div class="error">This loyalty link is invalid or incomplete.<br><br>' +
+      'Please ask our staff to show you your <b>QR code</b>.</div>';
+    return;
+  }
+
+  var brand = store
+    ? '<div class="brand">' + escapeHtml(store) + '</div>'
+    : '<div class="brand">Loyalty Card</div>';
+
+  var qrSvgTag = '';
+  try {
+    if (typeof qrcode === 'function') {
+      var qr = qrcode(0, 'M');
+      qr.addData(code);
+      qr.make();
+      qrSvgTag = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    }
+  } catch (e) { qrSvgTag = ''; }
+
+  if (!qrSvgTag) {
+    qrSvgTag = '<div style="width:200px;height:200px;display:flex;align-items:center;justify-content:center;' +
+               'border:2px dashed #D6D3D1;border-radius:12px;font-size:13px;color:#78716C;">' +
+               'Show this code<br>at checkout</div>';
+  }
+
+  app.innerHTML =
+    brand +
+    '<div class="card">' +
+      '<div class="nickname">' + escapeHtml(name) + '</div>' +
+      '<div class="member-tag">Loyalty Member</div>' +
+      '<div class="qr-box">' + qrSvgTag + '</div>' +
+      '<div class="code">' + escapeHtml(code) + '</div>' +
+      '<div class="hint">Scan this at the counter to earn &amp; redeem points</div>' +
+    '</div>' +
+    '<button class="dl-btn" id="saveBtn">⬇ Save Card Image</button>' +
+    '<button class="trouble" id="troubleBtn">having trouble? view the image</button>' +
+    '<div class="shot-or">or take a screenshot</div>';
+
+  document.getElementById('saveBtn').addEventListener('click', onSaveClick);
+  document.getElementById('troubleBtn').addEventListener('click', function () {
+    if (window.__cardPng) { showOverlay(window.__cardPng); }
+    else { showToast('Still preparing… tap again in a second'); }
+  });
+  document.getElementById('ovlClose').addEventListener('click', hideOverlay);
+
+  preloadCardPng();
+})();
+
+/* ---------- save ---------- */
+
+function isAppleMobile() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function onSaveClick() {
+  var btn = document.getElementById('saveBtn');
+
+  if (!window.__cardPng) {
+    btn.disabled = true;
+    showToast('Preparing your card…');
+    setTimeout(function () {
+      preloadCardPng(function () {
+        btn.disabled = false;
+        if (window.__cardPng) onSaveClick();
+        else showToast('Could not prepare the image — try a screenshot');
+      });
+    }, 400);
+    return;
+  }
+
+  if (isAppleMobile()) {
+    showOverlay(window.__cardPng);
+    return;
+  }
+
+  /* Synchronous download inside the tap — no blobs, no lost user activation */
+  var a = document.createElement('a');
+  a.href = window.__cardPng;
+  a.download = 'loyalty-' + String(window.__cardCode).replace(/[^A-Z0-9-]/g, '') + '.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  showToast('Downloading… check your gallery or Downloads');
+}
+
+function preloadCardPng(done) {
+  var finish = function (qrImg) {
+    var cv = composeCard(qrImg);
+    try {
+      window.__cardPng = cv.toDataURL('image/png');
+    } catch (e) {
+      window.__cardPng = null;
+    }
+    if (typeof done === 'function') done();
+  };
+
+  var failPath = function () {
+    finish(null);
+  };
+
+  try {
+    if (typeof qrcode !== 'function') { failPath(); return; }
+    var qr = qrcode(0, 'M');
+    qr.addData(window.__cardCode);
+    qr.make();
+    var img = new Image();
+    img.onload = function () { finish(img); };
+    img.onerror = failPath;
+    img.src = qr.createDataURL(10, 0);
+  } catch (e) {
+    failPath();
+  }
+}
+
+/* ---------- canvas renderer ---------- */
+
+function composeCard(qrImg) {
+  var s = 2;
+  var W = 640 * s, H = 900 * s;
+  var cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  var g = cv.getContext('2d');
+
+  g.beginPath();
+  if (g.roundRect) { g.roundRect(0, 0, W, H, 40 * s); } else { g.rect(0, 0, W, H); }
+  g.fillStyle = '#FFFFFF';
+  g.fill();
+
+  g.save();
+  g.beginPath();
+  if (g.roundRect) { g.roundRect(0, 0, W, H, 40 * s); } else { g.rect(0, 0, W, H); }
+  g.clip();
+  var grad = g.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#F59E0B');
+  grad.addColorStop(1, '#D97706');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, W, 14 * s);
+  g.restore();
+
+  g.textAlign = 'center';
+
+  g.fillStyle = 'rgba(28,25,23,.55)';
+  g.font = '700 ' + Math.round(26 * s) + 'px sans-serif';
+  g.fillText((window.__cardStore || 'LOYALTY CARD').toUpperCase(), W / 2, 96 * s);
+
+  g.fillStyle = '#B45309';
+  g.font = '800 ' + Math.round(58 * s) + 'px sans-serif';
+  g.fillText(window.__cardName, W / 2, 180 * s, W - 80 * s);
+
+  var bs = 450 * s;
+  var bx = (W - bs) / 2;
+  var by = 240 * s;
+  g.fillStyle = '#FFFFFF';
+  g.fillRect(bx, by, bs, bs);
+  g.strokeStyle = '#E7E5E4';
+  g.lineWidth = 3 * s;
+  g.strokeRect(bx, by, bs, bs);
+
+  if (qrImg) {
+    g.imageSmoothingEnabled = false;
+    g.drawImage(qrImg, bx + 25 * s, by + 25 * s, bs - 50 * s, bs - 50 * s);
+    g.imageSmoothingEnabled = true;
+  } else {
+    g.fillStyle = '#78716C';
+    g.font = '600 ' + Math.round(22 * s) + 'px sans-serif';
+    g.fillText('Show this code at checkout', W / 2, by + bs / 2);
+  }
+
+  g.fillStyle = '#1C1917';
+  g.font = '700 ' + Math.round(36 * s) + 'px ui-monospace, Menlo, monospace';
+  g.fillText(window.__cardCode, W / 2, by + bs + 70 * s);
+
+  g.fillStyle = '#78716C';
+  g.font = '600 ' + Math.round(21 * s) + 'px sans-serif';
+  g.fillText('Scan this at the counter to earn points', W / 2, by + bs + 120 * s);
+
+  return cv;
+}
+
+/* ---------- helpers ---------- */
+
+var toastTimer = null;
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, 3200);
+}
+
+function showOverlay(dataUrl) {
+  document.getElementById('ovlImg').src = dataUrl;
+  document.getElementById('ovl').classList.add('show');
+}
+
+function hideOverlay() {
+  document.getElementById('ovl').classList.remove('show');
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, function (ch) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+  });
+}
+</script>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { formatCurrency } from '../../utils/helpers';
 import { useThemeStore } from '../../store/themeStore';
 import type { CartItem } from '../../types/store';
@@ -15,15 +15,15 @@ export default function CartItemComponent({ item, onUpdateQuantity, onRemove, on
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { borderBottomColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
       <View style={styles.topRow}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{item.product.name}</Text>
-        <TouchableOpacity onPress={onRemove}>
+        <TouchableOpacity onPress={onRemove} hitSlop={8}>
           <Text style={[styles.removeBtn, { color: colors.danger }]}>✕</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.bottomRow}>
-        <TouchableOpacity onPress={onQuantityPress} style={[styles.qtyBtn, { borderColor: colors.border }]}>
+        <TouchableOpacity onPress={onQuantityPress} style={[styles.qtyBtn, { borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}>
           <Text style={[styles.qtyText, { color: colors.text }]}>{item.quantity}</Text>
           <Text style={[styles.qtyArrow, { color: colors.primary }]}>▼</Text>
         </TouchableOpacity>
@@ -37,9 +37,10 @@ export default function CartItemComponent({ item, onUpdateQuantity, onRemove, on
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    borderBottomWidth: 1,
+    padding: SPACING.sm + 2,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    marginBottom: SPACING.xs,
   },
   topRow: {
     flexDirection: 'row',
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: RADII.full,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     gap: 4,
@@ -83,6 +84,6 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

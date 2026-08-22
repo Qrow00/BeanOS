@@ -1,7 +1,8 @@
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ThemeColors } from '../../store/themeStore';
 import type { User } from '../../types/database';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 
 interface UserProfileCardProps {
   user: User;
@@ -11,15 +12,18 @@ interface UserProfileCardProps {
 
 export default function UserProfileCard({ user, onSelect, colors }: UserProfileCardProps) {
   const initial = user.display_name.charAt(0).toUpperCase();
+  const accent: [string, string] = user.role === 'admin' ? [colors.primaryGradientFrom, colors.primaryGradientTo] : [colors.success, colors.secondaryAccent];
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[styles.card, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
       onPress={() => onSelect(user)}
       activeOpacity={0.7}
     >
-      <View style={[styles.avatar, { backgroundColor: user.role === 'admin' ? colors.primary : colors.success }]}>
-        <Text style={styles.avatarText}>{initial}</Text>
+      <View style={styles.avatarRing}>
+        <LinearGradient colors={accent} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
+          <Text style={styles.avatarText}>{initial}</Text>
+        </LinearGradient>
       </View>
       <Text style={[styles.displayName, { color: colors.text }]}>{user.display_name}</Text>
       <Text style={[styles.username, { color: colors.textSecondary }]}>@{user.username}</Text>
@@ -34,19 +38,25 @@ export default function UserProfileCard({ user, onSelect, colors }: UserProfileC
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
+    borderRadius: RADII.md,
     padding: SPACING.md,
     paddingBottom: SPACING.sm,
     alignItems: 'center',
     borderWidth: 1,
   },
+  avatarRing: {
+    padding: 2,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    marginBottom: SPACING.sm,
+  },
   avatar: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.xs,
   },
   avatarText: {
     color: '#FFFFFF',
@@ -65,7 +75,7 @@ const styles = StyleSheet.create({
   roleBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: RADII.full,
   },
   roleText: {
     fontSize: 11,

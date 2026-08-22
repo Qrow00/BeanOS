@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, StyleSheet, Modal as RNModal } from 'react-native';
+import { Text, TouchableOpacity, StyleSheet, Modal as RNModal, View, KeyboardAvoidingView } from 'react-native';
 import { useThemeStore } from '../../store/themeStore';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
+import GlassPanel from './glass/GlassPanel';
 
 interface ModalProps {
   visible: boolean;
@@ -15,30 +16,34 @@ export default function Modal({ visible, title, children, onClose, modalStyle }:
 
   return (
     <RNModal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
-      <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
-        <View style={[styles.modal, { backgroundColor: colors.surface }, modalStyle]}>
-          <View style={styles.header}>
-            {title && <Text style={[styles.title, { color: colors.text }]}>{title}</Text>}
-            <TouchableOpacity onPress={onClose}>
-              <Text style={[styles.closeBtn, { color: colors.danger }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          {children}
+      <KeyboardAvoidingView style={styles.kav} behavior="padding">
+        <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+          <GlassPanel strong radius={RADII.xl} androidRealBlur intensity={60} style={[styles.modal, modalStyle]}>
+            <View style={styles.header}>
+              {title && <Text style={[styles.title, { color: colors.text }]}>{title}</Text>}
+              <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+                <Text style={[styles.closeText, { color: colors.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {children}
+          </GlassPanel>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </RNModal>
   );
 }
 
 const styles = StyleSheet.create({
+  kav: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: SPACING.md,
   },
   modal: {
-    borderRadius: 16,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     maxHeight: '80%',
   },
   header: {
@@ -49,11 +54,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   closeBtn: {
-    fontSize: FONT_SIZES.lg,
+    width: 32,
+    height: 32,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeText: {
+    fontSize: FONT_SIZES.sm,
     fontWeight: '700',
-    padding: SPACING.xs,
   },
 });

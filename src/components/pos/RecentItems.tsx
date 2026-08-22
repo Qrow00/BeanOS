@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
@@ -38,7 +38,7 @@ export default function RecentItems({ onAddToCart }: RecentItemsProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.label, { color: colors.warning }]}>★ Top Sellers Weekly</Text>
+      <Text style={[styles.label, { color: colors.warning }]}>★ TOP SELLERS WEEKLY</Text>
       <FlatList
         data={filtered}
         horizontal
@@ -46,14 +46,14 @@ export default function RecentItems({ onAddToCart }: RecentItemsProps) {
         keyExtractor={item => String(item.id)}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[styles.chip, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.chip, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}
             onPress={() => onAddToCart(item)}
             disabled={item.stock_quantity <= 0}
           >
             <Text style={[styles.chipText, { color: colors.text }, item.stock_quantity <= 0 && styles.chipDisabled]}>
               {item.name}
             </Text>
-            <Text style={[styles.chipPrice, { color: colors.text }]}>{formatCurrency(item.price)}</Text>
+            <Text style={[styles.chipPrice, { color: colors.primary }]}>{formatCurrency(item.price)}</Text>
           </TouchableOpacity>
         )}
       />
@@ -67,15 +67,14 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FONT_SIZES.xs,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: SPACING.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   chip: {
-    borderRadius: 10,
+    borderRadius: RADII.full,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.sm - 2,
     marginRight: SPACING.sm,
     borderWidth: 1,
     alignItems: 'center',
@@ -87,7 +86,7 @@ const styles = StyleSheet.create({
   },
   chipPrice: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 2,
   },
   chipDisabled: {

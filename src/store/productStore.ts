@@ -3,7 +3,6 @@ import type { Product, ProductInput } from '../types/database';
 import type { ProductState } from '../types/store';
 import { getDatabase } from '../database/connection';
 import * as productsRepo from '../database/products';
-import { recordPriceChange } from '../database/priceHistory';
 
 let cachedDb: any = null;
 async function getDb() {
@@ -44,12 +43,6 @@ export const useProductStore = create<ProductState>((set, get) => ({
   updateProduct: async (id: number, input: Partial<Product>) => {
     try {
       const db = await getDb();
-      if (input.price !== undefined) {
-        const current = await productsRepo.getProductById(db, id);
-        if (current && current.price !== input.price) {
-          await recordPriceChange(db, id, current.price, input.price);
-        }
-      }
       await productsRepo.updateProduct(db, id, input);
       await get().fetchProducts();
     } catch (err) {

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, Keyboard } from 'react-native';
 import Modal from '../ui/Modal';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { PaymentMethod } from '../../types/database';
 import QRPaymentModal from './QRPaymentModal';
+import GradientButton from '../ui/glass/GradientButton';
 
 interface PaymentMethodModalProps {
   visible: boolean;
@@ -59,7 +60,11 @@ export default function PaymentMethodModal({
           {paymentOptions.map(opt => (
             <TouchableOpacity
               key={opt.key}
-              style={[styles.option, { backgroundColor: colors.background }, selectedMethod === opt.key && { borderColor: colors.primary, backgroundColor: '#EEF2FF' }]}
+              style={[
+                styles.option,
+                { backgroundColor: colors.glassFill, borderColor: colors.glassStroke },
+                selectedMethod === opt.key && { borderColor: colors.primary, backgroundColor: colors.primarySurface },
+              ]}
               onPress={() => onSelect(opt.key)}
             >
               <Text style={styles.optionIcon}>{opt.icon}</Text>
@@ -77,7 +82,7 @@ export default function PaymentMethodModal({
           <View style={styles.tenderedSection}>
             <Text style={[styles.tenderedLabel, { color: colors.textSecondary }]}>Amount Tendered</Text>
             <TextInput
-              style={[styles.tenderedInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              style={[styles.tenderedInput, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
               value={tendered}
               onChangeText={setTendered}
               keyboardType="decimal-pad"
@@ -92,19 +97,9 @@ export default function PaymentMethodModal({
         )}
 
         {isQRMethod ? (
-          <TouchableOpacity
-            style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setShowQRModal(true)}
-          >
-            <Text style={styles.confirmText}>Pay with QR</Text>
-          </TouchableOpacity>
+          <GradientButton title="Pay with QR" onPress={() => setShowQRModal(true)} />
         ) : (
-          <TouchableOpacity
-            style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
-            onPress={handleConfirm}
-          >
-            <Text style={styles.confirmText}>Pay {formatCurrency(total)}</Text>
-          </TouchableOpacity>
+          <GradientButton title={`Pay ${formatCurrency(total)}`} onPress={handleConfirm} />
         )}
       </ScrollView>
 
@@ -132,9 +127,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.sm + 4,
     paddingHorizontal: SPACING.md,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderRadius: RADII.sm,
+    borderWidth: 1.5,
   },
   optionIcon: {
     fontSize: 20,
@@ -165,7 +159,7 @@ const styles = StyleSheet.create({
   },
   tenderedInput: {
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: RADII.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm + 4,
     fontSize: 24,
@@ -177,16 +171,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginTop: SPACING.sm,
-  },
-  confirmBtn: {
-    height: 52,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmText: {
-    color: '#fff',
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
   },
 });

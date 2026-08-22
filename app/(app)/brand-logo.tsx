@@ -10,8 +10,8 @@ export default function BrandLogoScreen() {
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <View style={styles.container}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/settings')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Settings</Text>
         </TouchableOpacity>

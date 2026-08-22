@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Product, PaymentMethod, HoldTransaction } from '../types/database';
+import type { Product, PaymentMethod, HoldTransaction, Customer } from '../types/database';
 import type { CartItem, CartState, DiscountInput } from '../types/store';
 import { getDatabase } from '../database/connection';
 import * as holdsRepo from '../database/holds';
@@ -14,6 +14,8 @@ async function getDb(): Promise<SQLiteDatabase> {
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   manualDiscount: null,
+  loyaltyCustomer: null,
+  pointsToRedeem: 0,
   isLoading: false,
   paymentMethod: 'cash',
 
@@ -49,13 +51,31 @@ export const useCartStore = create<CartState>((set, get) => ({
     }));
   },
 
-  clearCart: () => set({ items: [], manualDiscount: null }),
+  clearCart: () => set({ items: [], manualDiscount: null, loyaltyCustomer: null, pointsToRedeem: 0 }),
 
   setManualDiscount: (type: 'percentage' | 'fixed', value: number) => {
     set({ manualDiscount: { type, value: Math.max(0, value) } });
   },
 
   clearManualDiscount: () => set({ manualDiscount: null }),
+
+  setLoyaltyCustomer: (customer: Customer) => {
+    const current = get().loyaltyCustomer;
+    if (current?.id === customer.id) {
+      set({ loyaltyCustomer: customer });
+    } else {
+      set({ loyaltyCustomer: customer, pointsToRedeem: 0 });
+    }
+  },
+
+  clearLoyaltyCustomer: () => set({ loyaltyCustomer: null, pointsToRedeem: 0 }),
+
+  setPointsToRedeem: (points: number) => {
+    const { loyaltyCustomer } = get();
+    if (!loyaltyCustomer) return;
+    const max = Math.min(loyaltyCustomer.points_balance, points);
+    set({ pointsToRedeem: Math.max(0, Math.floor(max)) });
+  },
 
   setPaymentMethod: (method: PaymentMethod) => set({ paymentMethod: method }),
 
@@ -82,13 +102,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   holdCart: async (label: string) => {
-    const { items, manualDiscount, paymentMethod } = get();
+    const { items, manualDiscount, paymentMethod, loyaltyCustomer, pointsToRedeem } = get();
     if (items.length === 0) return;
     const db = await getDb();
     const user = (await import('../store/authStore')).useAuthStore.getState().user;
     if (!user) return;
 
-    const cartData = { items, manualDiscount };
+    const cartData = { items, manualDiscount, loyaltyCustomer, pointsToRedeem };
     const subtotal = get().getSubtotal();
     const discount = get().getDiscount();
 
@@ -104,7 +124,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       get().getItemCount(),
       user.id
     );
-    set({ items: [], manualDiscount: null });
+    set({ items: [], manualDiscount: null, loyaltyCustomer: null, pointsToRedeem: 0 });
   },
 
   restoreCart: (hold: HoldTransaction) => {
@@ -114,6 +134,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         items: data.items as CartItem[],
         manualDiscount: data.manualDiscount as DiscountInput | null,
         paymentMethod: hold.payment_method as PaymentMethod,
+        loyaltyCustomer: (data.loyaltyCustomer as Customer) ?? null,
+        pointsToRedeem: data.pointsToRedeem ?? 0,
       });
     } catch {}
   },

@@ -1,16 +1,19 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Animated, PanResponder, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { getDatabase } from '../../../src/database/connection';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
+import { useBreakpoint } from '../../../src/hooks/useBreakpoint';
 import type { Sale, SaleItem } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 import { formatCurrency, formatDate } from '../../../src/utils/helpers';
-import Card from '../../../src/components/ui/Card';
 import ConfirmModal from '../../../src/components/ui/ConfirmModal';
 import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
+import GlassCard from '../../../src/components/ui/glass/GlassCard';
+import GlassChip from '../../../src/components/ui/glass/GlassChip';
+import GlassPanel from '../../../src/components/ui/glass/GlassPanel';
 
 type DateFilter = 'all' | 'today' | 'week' | 'month';
 
@@ -18,6 +21,7 @@ export default function SalesHistoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
   const { isAdmin } = useAuthStore();
+  const bp = useBreakpoint();
   const [sales, setSales] = useState<(Sale & { items?: SaleItem[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DateFilter>('all');
@@ -74,6 +78,7 @@ export default function SalesHistoryScreen() {
       const db = await getDatabase();
       await db.runAsync('DELETE FROM sales WHERE id = ?', sale.id);
       setSales(prev => prev.filter(s => s.id !== sale.id));
+      if (selectedSale?.sale.id === sale.id) setSelectedSale(null);
     } catch (e) {
       Alert.alert('Error', 'Could not delete the sale record.');
     } finally {
@@ -105,7 +110,7 @@ export default function SalesHistoryScreen() {
 
     return (
       <View style={{ marginBottom: SPACING.sm }}>
-        <View style={{ borderRadius: 12, overflow: 'hidden' }}>
+        <View style={{ borderRadius: RADII.md, overflow: 'hidden' }}>
           <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
             {children}
           </Animated.View>
@@ -132,10 +137,14 @@ export default function SalesHistoryScreen() {
           category: '',
           price: si.unit_price,
           stock_quantity: 0,
+          stock_unit: 'pcs',
+          measurement: null,
+          is_ingredient: 0,
+          initial_stock: 0,
+          icon_color: null,
           barcode: null,
           description: null,
           image_uri: null,
-          stock_unit: 'pcs',
           created_at: '',
           updated_at: '',
         },
@@ -145,7 +154,7 @@ export default function SalesHistoryScreen() {
     } catch {}
   };
 
-  if (selectedSale) {
+  if (!bp.twoPane && selectedSale) {
     const { sale, items } = selectedSale;
     return (
       <ReceiptScreen
@@ -170,53 +179,51 @@ export default function SalesHistoryScreen() {
     { key: 'month', label: 'Month' },
   ];
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
-          <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
-        <View style={{ width: 80 }} />
-      </View>
+  const renderSaleItem = ({ item }: { item: Sale }) => {
+    const card = (
+      <TouchableOpacity onPress={() => handleViewReceipt(item)}>
+        <GlassCard
+          style={[styles.saleCard, selectedSale?.sale.id === item.id && { borderColor: colors.primary }]}
+        >
+          <View style={styles.saleHeader}>
+            <Text style={[styles.receipt, { color: colors.secondaryAccent }]}>{item.receipt_number}</Text>
+            <Text style={[styles.paymentMethod, { color: colors.primary, backgroundColor: colors.primarySurface }]}>{item.payment_method.toUpperCase()}</Text>
+          </View>
+          <View style={styles.saleDetails}>
+            <Text style={[styles.detailText, { color: colors.textSecondary }]}>Subtotal: {formatCurrency(item.subtotal)}</Text>
+            {item.discount_amount > 0 && (
+              <Text style={[styles.discount, { color: colors.success }]}>Discount: -{formatCurrency(item.discount_amount)}</Text>
+            )}
+            <Text style={[styles.total, { color: colors.text }]}>Total: {formatCurrency(item.total)}</Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(item.sale_date)}</Text>
+          </View>
+        </GlassCard>
+      </TouchableOpacity>
+    );
+    return isAdmin() ? <SwipeableRow item={item}>{card}</SwipeableRow> : card;
+  };
+
+  const listContent = (
+    <>
       <View style={styles.filterRow}>
         {filters.map(f => (
-          <TouchableOpacity
+          <GlassChip
             key={f.key}
-            style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: colors.border }, filter === f.key && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            label={f.label}
+            active={filter === f.key}
             onPress={() => setFilter(f.key)}
-          >
-            <Text style={[styles.filterText, { color: colors.textSecondary }, filter === f.key && { color: '#fff' }]}>{f.label}</Text>
-          </TouchableOpacity>
+          />
         ))}
       </View>
 
       <FlatList
         data={sales}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => {
-          const card = (
-            <TouchableOpacity onPress={() => handleViewReceipt(item)}>
-              <Card style={styles.saleCard}>
-                <View style={styles.saleHeader}>
-                  <Text style={[styles.receipt, { color: colors.text }]}>{item.receipt_number}</Text>
-                  <Text style={[styles.paymentMethod, { color: colors.text, backgroundColor: colors.primarySurface }]}>{item.payment_method.toUpperCase()}</Text>
-                </View>
-                <View style={styles.saleDetails}>
-                  <Text style={[styles.detailText, { color: colors.text }]}>Subtotal: {formatCurrency(item.subtotal)}</Text>
-                  {item.discount_amount > 0 && (
-                    <Text style={[styles.discount, { color: colors.success }]}>Discount: -{formatCurrency(item.discount_amount)}</Text>
-                  )}
-                  <Text style={[styles.total, { color: colors.text }]}>Total: {formatCurrency(item.total)}</Text>
-                  <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(item.sale_date)}</Text>
-                </View>
-              </Card>
-            </TouchableOpacity>
-          );
-          return isAdmin() ? <SwipeableRow item={item}>{card}</SwipeableRow> : card;
-        }}
+        renderItem={renderSaleItem}
         refreshing={loading}
         onRefresh={loadSales}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }}
         ListFooterComponent={
           isAdmin() ? <Text style={[styles.swipeHint, { color: colors.textSecondary }]}>Swipe left on a sale to delete</Text> : null
         }
@@ -226,6 +233,69 @@ export default function SalesHistoryScreen() {
           </View>
         }
       />
+    </>
+  );
+
+  if (bp.twoPane) {
+    return (
+      <View style={[styles.container, styles.twoPaneRow]}>
+        <View style={styles.listCol}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
+              <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
+            </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
+            <View style={{ width: 80 }} />
+          </View>
+          {listContent}
+        </View>
+
+        <GlassPanel radius={RADII.xl} androidRealBlur intensity={50} style={styles.detailPane}>
+          {selectedSale ? (
+            <ReceiptScreen
+              receiptNumber={selectedSale.sale.receipt_number}
+              items={selectedSale.items}
+              subtotal={selectedSale.sale.subtotal}
+              discount={selectedSale.sale.discount_amount}
+              total={selectedSale.sale.total}
+              paymentMethod={selectedSale.sale.payment_method as any}
+              amountTendered={selectedSale.sale.total + (selectedSale.sale.payment_method === 'cash' ? 0 : selectedSale.sale.total)}
+              change={selectedSale.sale.payment_method === 'cash' ? 0 : 0}
+              cashierName=""
+              onNewSale={() => setSelectedSale(null)}
+            />
+          ) : (
+            <View style={styles.emptyDetail}>
+              <Text style={[styles.emptyDetailIcon, { color: colors.disabled }]}>🧾</Text>
+              <Text style={[styles.emptyDetailText, { color: colors.textSecondary }]}>Select a sale to view its receipt</Text>
+            </View>
+          )}
+        </GlassPanel>
+
+        <ConfirmModal
+          visible={pendingDelete !== null}
+          title="Delete Sale"
+          message={`Delete sale "${pendingDelete?.receipt_number}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={confirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
+          <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Sales History</Text>
+        <View style={{ width: 80 }} />
+      </View>
+
+      {listContent}
 
       <ConfirmModal
         visible={pendingDelete !== null}
@@ -245,39 +315,58 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.md,
   },
+  twoPaneRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  listCol: {
+    flex: 1,
+    minWidth: 320,
+  },
+  detailPane: {
+    width: 460,
+    maxWidth: '45%',
+  },
+  emptyDetail: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.xl,
+  },
+  emptyDetailIcon: {
+    fontSize: 44,
+    marginBottom: SPACING.sm,
+  },
+  emptyDetailText: {
+    fontSize: FONT_SIZES.md,
+    textAlign: 'center',
+  },
   filterRow: {
     flexDirection: 'row',
     gap: SPACING.xs,
     marginBottom: SPACING.md,
-  },
-  filterChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  filterText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '600',
+    flexWrap: 'wrap',
   },
   saleCard: {
-    marginBottom: SPACING.sm,
+    marginBottom: 0,
   },
   saleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.sm,
   },
   receipt: {
     fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   paymentMethod: {
     fontSize: 10,
     fontWeight: '700',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADII.full,
+    overflow: 'hidden',
   },
   saleDetails: {
     gap: 4,
@@ -327,11 +416,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: SPACING.sm,
     marginBottom: SPACING.md,
-    borderBottomWidth: 1,
   },
   title: {
     fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   backBtn: {
     fontSize: FONT_SIZES.md,

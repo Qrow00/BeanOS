@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { View, FlatList, TouchableOpacity, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useCouponStore } from '../../../src/store/couponStore';
@@ -20,7 +21,7 @@ export default function CouponsScreen() {
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <FlatList
         data={coupons}
         keyExtractor={(item) => String(item.id)}
@@ -42,9 +43,15 @@ export default function CouponsScreen() {
 
       {isAdmin() && (
         <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: isLandscape ? 76 : 100 }]}
+        style={[styles.fab, { bottom: 96 }]}
         onPress={() => router.push('/(app)/coupons/new')}
         >
+          <LinearGradient
+            colors={[colors.primaryGradientFrom, colors.primaryGradientTo]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
           <Text style={styles.fabText}>+</Text>
         </TouchableOpacity>
       )}

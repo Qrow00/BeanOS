@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES, getProductIconColor } from '../../utils/constants';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { SPACING, FONT_SIZES, RADII, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
@@ -20,25 +20,31 @@ function ProductCard({ product, onPress }: ProductCardProps) {
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface }]}
+      style={[
+        styles.card,
+        { backgroundColor: colors.glassFill },
+        inCart && { borderColor: colors.primary },
+        outOfStock && { opacity: 0.55 },
+      ]}
       onPress={onPress}
       disabled={outOfStock && !onPress}
       activeOpacity={0.7}
     >
       {inCart && (
-        <View style={[styles.tint, { backgroundColor: colors.primary }]} />
-      )}
-      {inCart && (
         <View style={[styles.badge, { backgroundColor: colors.primary }]}>
           <Text style={styles.badgeText}>{quantity}</Text>
         </View>
       )}
-      <View style={[styles.colorDot, { backgroundColor: getProductIconColor(product.icon_color, product.category) }]} />
+      {product.image_uri ? (
+        <Image source={{ uri: product.image_uri }} style={styles.thumb} />
+      ) : (
+        <View style={[styles.colorDot, { backgroundColor: getProductIconColor(product.icon_color, product.category) }]} />
+      )}
       <View style={styles.info}>
         <View style={styles.nameRow}>
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
           {outOfStock && <Text style={[styles.outBadge, { color: colors.danger }]}>Out</Text>}
-          {isDrink && <Text style={[styles.recipeBadge, { color: colors.primary }]}>📋</Text>}
+          {isDrink && <Text style={[styles.recipeBadge, { color: colors.secondaryAccent }]}>📋</Text>}
         </View>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {product.category} • {product.item_id}
@@ -59,28 +65,31 @@ function ProductCard({ product, onPress }: ProductCardProps) {
   );
 }
 
-export default memo(ProductCard, (prev, next) => prev.product.id === next.product.id);
+export default memo(ProductCard, (prev, next) => prev.product === next.product);
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.001)',
     padding: SPACING.md,
     marginBottom: SPACING.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-    overflow: 'hidden',
   },
   colorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: SPACING.sm,
+    width: 12,
+    height: 12,
+    borderRadius: RADII.full,
+    marginRight: SPACING.md,
+  },
+  thumb: {
+    width: 46,
+    height: 46,
+    borderRadius: RADII.sm,
+    marginRight: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.06)',
   },
   info: {
     flex: 1,
@@ -114,18 +123,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.lg,
     fontWeight: '800',
   },
-  tint: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.12,
-    borderRadius: 12,
-  },
   badge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: -6,
+    right: -4,
     minWidth: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,

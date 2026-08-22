@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { Transaction } from '../../types/database';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency, formatDate } from '../../utils/helpers';
 
@@ -14,11 +14,18 @@ export default function TransactionCard({ transaction, onDelete }: TransactionCa
   const isIncome = transaction.type === 'income';
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderLeftColor: isIncome ? colors.success : colors.danger }]}>
+    <View style={[styles.card, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke, borderLeftColor: isIncome ? colors.success : colors.danger }]}>
       <View style={styles.topRow}>
         <View style={styles.categoryRow}>
-          <View style={[styles.typeBadge, { backgroundColor: isIncome ? '#D1FAE5' : '#FEE2E2' }]}>
-            <Text style={[styles.typeBadgeText, { color: isIncome ? '#065F46' : '#991B1B' }]}>
+          <View
+            style={[
+              styles.typeBadge,
+              {
+                backgroundColor: isIncome ? colors.success + '22' : colors.danger + '22',
+              },
+            ]}
+          >
+            <Text style={[styles.typeBadgeText, { color: isIncome ? colors.success : colors.danger }]}>
               {isIncome ? 'Income' : 'Expense'}
             </Text>
           </View>
@@ -43,14 +50,15 @@ export default function TransactionCard({ transaction, onDelete }: TransactionCa
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderLeftWidth: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
   topRow: {

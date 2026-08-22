@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
 
@@ -9,13 +9,14 @@ interface CartSummaryProps {
   total: number;
   itemCount: number;
   discountLabel?: string | null;
+  pointsDiscount?: number;
 }
 
-export default function CartSummary({ subtotal, discount, total, itemCount, discountLabel }: CartSummaryProps) {
+export default function CartSummary({ subtotal, discount, total, itemCount, discountLabel, pointsDiscount = 0 }: CartSummaryProps) {
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface }]}>
+    <View style={[styles.container, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
       <View style={styles.row}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Subtotal</Text>
         <Text style={[styles.value, { color: colors.text }]}>{formatCurrency(subtotal)}</Text>
@@ -28,10 +29,16 @@ export default function CartSummary({ subtotal, discount, total, itemCount, disc
           <Text style={[styles.value, { color: colors.success }]}>-{formatCurrency(discount)}</Text>
         </View>
       )}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+      {pointsDiscount > 0 && (
+        <View style={styles.row}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Loyalty points</Text>
+          <Text style={[styles.value, { color: colors.success }]}>-{formatCurrency(pointsDiscount)}</Text>
+        </View>
+      )}
+      <View style={[styles.divider, { backgroundColor: colors.glassStroke }]} />
       <View style={styles.row}>
         <Text style={[styles.totalLabel, { color: colors.text }]}>Total ({itemCount} items)</Text>
-        <Text style={[styles.totalValue, { color: colors.text }]}>{formatCurrency(total)}</Text>
+        <Text style={[styles.totalValue, { color: colors.primary }]}>{formatCurrency(total)}</Text>
       </View>
     </View>
   );
@@ -39,7 +46,8 @@ export default function CartSummary({ subtotal, discount, total, itemCount, disc
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: RADII.md,
+    borderWidth: 1,
     padding: SPACING.md,
   },
   row: {
@@ -64,7 +72,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   totalValue: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontWeight: '800',
   },
 });

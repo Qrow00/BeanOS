@@ -17,38 +17,69 @@ export interface ThemeColors {
   warning: string;
   disabled: string;
   overlay: string;
+  // Glass design tokens
+  glassFill: string;
+  glassFillStrong: string;
+  glassStroke: string;
+  glowPrimary: string;
+  primaryGradientFrom: string;
+  primaryGradientTo: string;
+  secondaryAccent: string;
+  blobA: string;
+  blobB: string;
+  blobC: string;
 }
 
 export const lightTheme: ThemeColors = {
-  background: '#F8FAFC',
-  surface: '#FFFFFF',
-  text: '#0F172A',
-  textSecondary: '#64748B',
-  border: '#E2E8F0',
-  primary: '#2563EB',
-  primarySurface: '#EEF2FF',
-  secondary: '#64748B',
-  success: '#16A34A',
+  background: '#F2EDE4',
+  surface: '#FBF8F2',
+  text: '#1C1917',
+  textSecondary: '#6B6560',
+  border: 'rgba(28,25,23,0.14)',
+  primary: '#D97706',
+  primarySurface: 'rgba(217,119,6,0.14)',
+  secondary: '#78716C',
+  success: '#059669',
   danger: '#DC2626',
   warning: '#F59E0B',
-  disabled: '#CBD5E1',
-  overlay: 'rgba(0,0,0,0.5)',
+  disabled: '#D6D3D1',
+  overlay: 'rgba(41,37,36,0.45)',
+  glassFill: 'rgba(255,255,255,0.82)',
+  glassFillStrong: 'rgba(255,255,255,0.95)',
+  glassStroke: 'rgba(146,94,28,0.30)',
+  glowPrimary: 'rgba(245,158,11,0.35)',
+  primaryGradientFrom: '#F59E0B',
+  primaryGradientTo: '#EA580C',
+  secondaryAccent: '#0D9488',
+  blobA: 'rgba(245,158,11,0.45)',
+  blobB: 'rgba(13,148,136,0.30)',
+  blobC: 'rgba(244,114,182,0.22)',
 };
 
 export const darkTheme: ThemeColors = {
-  background: '#141414',
-  surface: '#1E1E1E',
-  text: '#F5F5F5',
-  textSecondary: '#A3A3A3',
-  border: '#333333',
-  primary: '#60A5FA',
-  primarySurface: '#1E3A5F',
-  secondary: '#A3A3A3',
-  success: '#22C55E',
-  danger: '#EF4444',
-  warning: '#F59E0B',
-  disabled: '#525252',
-  overlay: 'rgba(0,0,0,0.7)',
+  background: '#07070B',
+  surface: '#12121C',
+  text: '#F4F4F6',
+  textSecondary: '#9CA0AF',
+  border: 'rgba(255,255,255,0.10)',
+  primary: '#8B5CF6',
+  primarySurface: 'rgba(139,92,246,0.16)',
+  secondary: '#9CA0AF',
+  success: '#34D399',
+  danger: '#F87171',
+  warning: '#FBBF24',
+  disabled: '#3F3F50',
+  overlay: 'rgba(4,4,8,0.68)',
+  glassFill: 'rgba(24,24,38,0.66)',
+  glassFillStrong: 'rgba(22,22,36,0.95)',
+  glassStroke: 'rgba(255,255,255,0.22)',
+  glowPrimary: 'rgba(139,92,246,0.45)',
+  primaryGradientFrom: '#A78BFA',
+  primaryGradientTo: '#6366F1',
+  secondaryAccent: '#22D3EE',
+  blobA: 'rgba(124,58,237,0.30)',
+  blobB: 'rgba(34,211,238,0.16)',
+  blobC: 'rgba(99,102,241,0.22)',
 };
 
 function getSystemMode(): 'light' | 'dark' {

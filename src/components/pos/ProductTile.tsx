@@ -1,6 +1,7 @@
 import { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES, getProductIconColor } from '../../utils/constants';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, FONT_SIZES, RADII, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
@@ -20,56 +21,72 @@ function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
 
   return (
     <TouchableOpacity
-      style={[styles.tile, { backgroundColor: colors.surface, width: tileWidth, height: tileWidth }]}
+      style={[
+        styles.tile,
+        { backgroundColor: colors.glassFill, borderColor: inCart ? colors.primary : colors.glassStroke, width: tileWidth, height: tileWidth },
+      ]}
       onPress={onAddToCart}
       disabled={outOfStock}
       activeOpacity={0.7}
     >
-      {inCart && (
-        <View style={[styles.tint, { backgroundColor: colors.primary }]} />
-      )}
       {inCart && (
         <View style={[styles.badge, { backgroundColor: colors.primary }]}>
           <Text style={styles.badgeText}>{quantity}</Text>
         </View>
       )}
       <View style={styles.avatarWrapper}>
-        <View style={[styles.avatar, { backgroundColor: getProductIconColor(product.icon_color, product.category) }]}>
-          <Text style={styles.avatarText}>{product.name.charAt(0).toUpperCase()}</Text>
+        <View style={[styles.avatarRing, { borderColor: getProductIconColor(product.icon_color, product.category) + '55' }]}>
+          {product.image_uri ? (
+            <Image source={{ uri: product.image_uri }} style={styles.avatar} />
+          ) : (
+            <LinearGradient
+              colors={[getProductIconColor(product.icon_color, product.category), getProductIconColor(product.icon_color, product.category) + '99']}
+              style={styles.avatar}
+            >
+              <Text style={styles.avatarText}>{product.name.charAt(0).toUpperCase()}</Text>
+            </LinearGradient>
+          )}
         </View>
       </View>
       <View style={styles.textGroup}>
         <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(product.price)}</Text>
+        <Text style={[styles.price, { color: colors.textSecondary }]}>{formatCurrency(product.price)}</Text>
         {outOfStock && <Text style={[styles.outText, { color: colors.danger }]}>Out of Stock</Text>}
       </View>
+      {outOfStock && <View style={styles.disabledTint} />}
     </TouchableOpacity>
   );
 }
 
-export default memo(ProductTile, (prev, next) => prev.product.id === next.product.id && prev.tileWidth === next.tileWidth);
+export default memo(ProductTile, (prev, next) => prev.product === next.product && prev.tileWidth === next.tileWidth);
 
 const styles = StyleSheet.create({
   tile: {
-    borderRadius: 12,
+    borderRadius: RADII.md,
+    borderWidth: 1,
     padding: SPACING.sm + 2,
     marginBottom: SPACING.sm,
     alignItems: 'center',
     justifyContent: 'flex-start',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
     overflow: 'hidden',
   },
+  avatarRing: {
+    padding: 2,
+    borderRadius: RADII.full,
+    borderWidth: 1,
+    marginBottom: SPACING.xs,
+  },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.xs,
   },
   avatarText: {
     color: '#FFFFFF',
@@ -83,7 +100,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   price: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontWeight: '800',
   },
   avatarWrapper: {
@@ -99,10 +116,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
-  tint: {
+  disabledTint: {
     ...StyleSheet.absoluteFillObject,
-    opacity: 0.12,
-    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
   badge: {
     position: 'absolute',
@@ -110,7 +126,7 @@ const styles = StyleSheet.create({
     right: 6,
     minWidth: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,

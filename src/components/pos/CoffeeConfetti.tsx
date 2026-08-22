@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Animated, Dimensions, StyleSheet } from 'react-native';
 
-const COFFEE_COLORS = ['#6F4E37', '#A0522D', '#D2691E', '#F5F5DC', '#3E7A34', '#8B4513', '#4A3728'];
+const COFFEE_COLORS = ['#6F4E37', '#A0522D', '#D2691E', '#F5F5DC', '#3E7A34', '#8B4513', '#4A3728', '#8B5CF6', '#22D3EE'];
 const PARTICLE_COUNT = 35;
 const BEAN_COUNT = 12;
 const WAVE_DELAYS = [0, 300, 600];

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import type { ThemeColors } from '../../store/themeStore';
 import type { User } from '../../types/database';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 
 interface PinNumpadProps {
   user: User;
@@ -11,9 +12,10 @@ interface PinNumpadProps {
   colors: ThemeColors;
   isLoading: boolean;
   error: string | null;
+  onBiometric?: () => void;
 }
 
-export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoading, error }: PinNumpadProps) {
+export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoading, error, onBiometric }: PinNumpadProps) {
   const [pin, setPin] = useState('');
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
@@ -64,8 +66,19 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
 
       <View style={styles.container}>
         <View style={styles.userInfo}>
-          <View style={[styles.avatar, { backgroundColor: user.role === 'admin' ? colors.primary : colors.success }]}>
-            <Text style={styles.avatarText}>{initial}</Text>
+          <View
+            style={[
+              styles.avatar,
+              {
+                backgroundColor: user.role === 'admin' ? colors.primary : colors.success,
+                shadowColor: user.role === 'admin' ? colors.glowPrimary : 'transparent',
+                shadowOpacity: user.role === 'admin' ? 0.5 : 0,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 4 },
+              },
+            ]}
+          >
+            <Text style={[styles.avatarText, { color: '#FFFFFF' }]}>{initial}</Text>
           </View>
           <Text style={[styles.displayName, { color: colors.text }]}>{user.display_name}</Text>
           <View style={[styles.roleBadge, { backgroundColor: user.role === 'admin' ? colors.primarySurface : colors.success + '20' }]}>
@@ -83,7 +96,7 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
               key={i}
               style={[
                 styles.dot,
-                { backgroundColor: colors.surface, borderColor: colors.border },
+                { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke },
                 i < pin.length && { backgroundColor: colors.primary, borderColor: colors.primary },
               ]}
             />
@@ -99,17 +112,29 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
             <View key={ri} style={styles.numpadRow}>
               {row.map((key, ki) => (
                 key === '' ? (
-                  <View key={ki} style={styles.numpadKey} />
+                  onBiometric ? (
+                    <TouchableOpacity
+                      key={ki}
+                      style={[styles.numpadKey, styles.biometricKey]}
+                      onPress={onBiometric}
+                      activeOpacity={0.6}
+                      disabled={isLoading}
+                    >
+                      <MaterialIcons name="fingerprint" size={52} color={colors.primary} />
+                    </TouchableOpacity>
+                  ) : (
+                    <View key={ki} style={styles.numpadKey} />
+                  )
                 ) : (
                   <TouchableOpacity
                     key={ki}
-                    style={[styles.numpadKey, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    style={[styles.numpadKey, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
                     onPress={() => handlePress(key)}
                     activeOpacity={0.6}
                     disabled={isLoading}
                   >
                     {key === 'backspace' ? (
-                      <Text style={[styles.numpadKeyText, { color: colors.text, fontSize: 22 }]}>⌫</Text>
+                      <Text style={[styles.numpadKeyText, { color: colors.secondaryAccent, fontSize: 24 }]}>⌫</Text>
                     ) : (
                       <Text style={[styles.numpadKeyText, { color: colors.text }]}>{key}</Text>
                     )}
@@ -151,27 +176,27 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.sm,
   },
   avatarText: {
-    color: '#FFFFFF',
     fontSize: FONT_SIZES.xxl,
     fontWeight: '700',
   },
   displayName: {
     fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: SPACING.xs,
+    letterSpacing: 0.3,
   },
   roleBadge: {
     paddingHorizontal: 12,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: RADII.full,
   },
   roleText: {
     fontSize: FONT_SIZES.xs,
@@ -180,6 +205,9 @@ const styles = StyleSheet.create({
   prompt: {
     fontSize: FONT_SIZES.md,
     marginBottom: SPACING.md,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    fontWeight: '600',
   },
   dotsRow: {
     flexDirection: 'row',
@@ -189,7 +217,7 @@ const styles = StyleSheet.create({
   dot: {
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: RADII.full,
     borderWidth: 2,
   },
   errorText: {
@@ -210,7 +238,7 @@ const styles = StyleSheet.create({
   numpadKey: {
     flex: 1,
     height: 96,
-    borderRadius: 20,
+    borderRadius: RADII.lg,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -218,5 +246,9 @@ const styles = StyleSheet.create({
   numpadKeyText: {
     fontSize: 38,
     fontWeight: '600',
+  },
+  biometricKey: {
+    borderWidth: 0,
+    backgroundColor: 'transparent',
   },
 });

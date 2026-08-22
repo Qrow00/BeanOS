@@ -1,5 +1,6 @@
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 
 interface ButtonProps {
@@ -14,35 +15,45 @@ interface ButtonProps {
 export default function Button({ title, onPress, variant = 'primary', loading = false, disabled = false, style }: ButtonProps) {
   const colors = useThemeStore(s => s.colors);
 
+  const isGradient = variant === 'primary';
   const isOutline = variant === 'outline';
-  const bgColor = isOutline
-    ? 'transparent'
-    : variant === 'primary'
-    ? colors.primary
-    : variant === 'danger'
-    ? colors.danger
-    : colors.surface;
 
-  const textColor = isOutline ? colors.primary : (variant === 'primary' || variant === 'danger') ? '#FFFFFF' : colors.text;
+  const textColor = isOutline
+    ? colors.primary
+    : isGradient || variant === 'danger'
+    ? '#FFFFFF'
+    : colors.text;
 
   return (
     <TouchableOpacity
       style={[
         styles.btn,
-        { backgroundColor: bgColor, borderColor: isOutline ? colors.primary : 'transparent' },
-        isOutline && { borderWidth: 1.5 },
+        {
+          backgroundColor: isGradient ? 'transparent' : variant === 'secondary' ? colors.glassFillStrong : variant === 'danger' ? colors.danger : colors.glassFill,
+          borderColor: isOutline || isGradient ? colors.primary : colors.glassStroke,
+        },
         (disabled || loading) && { opacity: 0.5 },
         style,
       ]}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
-      {loading ? (
-        <ActivityIndicator color={textColor} size="small" />
-      ) : (
-        <Text style={[styles.text, { color: textColor }]}>{title}</Text>
-      )}
+      {isGradient && !loading ? (
+        <LinearGradient
+          colors={[colors.primaryGradientFrom, colors.primaryGradientTo]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator color={textColor} size="small" />
+        ) : (
+          <Text style={[styles.text, { color: textColor }]}>{title}</Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -50,13 +61,20 @@ export default function Button({ title, onPress, variant = 'primary', loading = 
 const styles = StyleSheet.create({
   btn: {
     height: 48,
-    borderRadius: 10,
+    borderRadius: RADII.sm,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: SPACING.md,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   text: {
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

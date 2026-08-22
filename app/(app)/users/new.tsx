@@ -6,6 +6,7 @@ import { useThemeStore } from '../../../src/store/themeStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Input from '../../../src/components/ui/Input';
 import Button from '../../../src/components/ui/Button';
+import GradientButton from '../../../src/components/ui/glass/GradientButton';
 
 export default function NewUserScreen() {
   const router = useRouter();
@@ -54,8 +55,8 @@ export default function NewUserScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Users</Text>
         </TouchableOpacity>
@@ -88,7 +89,7 @@ export default function NewUserScreen() {
         />
       </View>
 
-      <Button
+      <GradientButton
         title={isEditing ? "Save Changes" : "Add User"}
         onPress={handleSubmit}
         loading={isLoading}

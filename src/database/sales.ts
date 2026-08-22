@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Sale, SaleItem, SaleInput, SaleItemInput, CartSaleItem, RecipeItem } from '../types/database';
+import type { Sale, SaleItem, SaleInput, SaleItemInput, CartSaleItem, LoyaltySaleData } from '../types/database';
 
 export async function getAllSales(db: SQLiteDatabase): Promise<Sale[]> {
   return db.getAllAsync<Sale>('SELECT * FROM sales ORDER BY sale_date DESC');
@@ -16,20 +16,24 @@ export async function getSaleItems(db: SQLiteDatabase, saleId: number): Promise<
 export async function createSale(
   db: SQLiteDatabase,
   saleInput: SaleInput,
-  items: CartSaleItem[]
+  items: CartSaleItem[],
+  loyalty?: LoyaltySaleData
 ): Promise<number> {
   let saleId = 0;
   await db.withExclusiveTransactionAsync(async (txn) => {
     const result = await txn.runAsync(
-      `INSERT INTO sales (receipt_number, user_id, coupon_id, subtotal, discount_amount, total, payment_method)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sales (receipt_number, user_id, coupon_id, customer_id, subtotal, discount_amount, total, payment_method, points_earned, points_redeemed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       saleInput.receipt_number,
       saleInput.user_id,
       saleInput.coupon_id,
+      loyalty?.customerId ?? null,
       saleInput.subtotal,
       saleInput.discount_amount,
       saleInput.total,
-      saleInput.payment_method
+      saleInput.payment_method,
+      loyalty?.pointsEarned ?? 0,
+      loyalty?.pointsRedeemed ?? 0
     );
     saleId = result.lastInsertRowId;
 
@@ -44,26 +48,47 @@ export async function createSale(
         item.total_price
       );
 
-      const recipe = await txn.getAllAsync<RecipeItem>(
-        'SELECT * FROM product_recipes WHERE product_id = ?',
+      await txn.runAsync(
+        'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
+        item.quantity,
         item.product_id
       );
+    }
 
-      if (recipe.length > 0) {
-        for (const r of recipe) {
-          await txn.runAsync(
-            'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
-            r.quantity * item.quantity,
-            r.ingredient_id
-          );
+    if (loyalty && (loyalty.pointsEarned > 0 || loyalty.pointsRedeemed > 0)) {
+      const customer = await txn.getFirstAsync<{ points_balance: number }>(
+        'SELECT points_balance FROM customers WHERE id = ?',
+        loyalty.customerId
+      );
+      if (!customer) throw new Error('Loyalty member not found');
+
+      if (loyalty.pointsRedeemed > 0) {
+        if (customer.points_balance < loyalty.pointsRedeemed) {
+          throw new Error('Insufficient loyalty points');
         }
-      } else {
         await txn.runAsync(
-          'UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?',
-          item.quantity,
-          item.product_id
+          "INSERT INTO loyalty_ledger (customer_id, sale_id, type, points, description, created_by) VALUES (?, ?, 'redeem', ?, ?, ?)",
+          loyalty.customerId, saleId, -loyalty.pointsRedeemed, `Redeemed on sale #${saleInput.receipt_number}`, saleInput.user_id
         );
       }
+      if (loyalty.pointsEarned > 0) {
+        await txn.runAsync(
+          "INSERT INTO loyalty_ledger (customer_id, sale_id, type, points, description, created_by) VALUES (?, ?, 'earn', ?, ?, ?)",
+          loyalty.customerId, saleId, loyalty.pointsEarned, `Earned on sale #${saleInput.receipt_number}`, saleInput.user_id
+        );
+      }
+
+      await txn.runAsync(
+        `UPDATE customers SET
+           points_balance = points_balance + ? - ?,
+           lifetime_points = lifetime_points + ?,
+           updated_at = datetime('now')
+         WHERE id = ?`,
+        loyalty.pointsEarned,
+        loyalty.pointsRedeemed,
+        Math.max(loyalty.pointsEarned, 0),
+        loyalty.customerId
+      );
     }
   });
   return saleId;

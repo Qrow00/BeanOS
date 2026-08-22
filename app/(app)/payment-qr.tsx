@@ -29,8 +29,8 @@ export default function PaymentQRScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <View style={styles.container}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/settings')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Settings</Text>
         </TouchableOpacity>
@@ -43,7 +43,7 @@ export default function PaymentQRScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>GCash</Text>
           <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code image and company name for GCash payments</Text>
           <TouchableOpacity
-            style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
+            style={[styles.qrPicker, { borderColor: colors.glassStroke, backgroundColor: colors.glassFill }]}
             onPress={() => pickImage(saveGcashQr)}
           >
             {gcashQrUri ? (
@@ -56,7 +56,7 @@ export default function PaymentQRScreen() {
             )}
           </TouchableOpacity>
           <TextInput
-            style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            style={[styles.qrNameInput, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
             value={gcashCompanyName}
             onChangeText={saveGcashCompanyName}
             placeholder="e.g. My Store GCash"
@@ -68,7 +68,7 @@ export default function PaymentQRScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Maya</Text>
           <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code image and company name for Maya payments</Text>
           <TouchableOpacity
-            style={[styles.qrPicker, { borderColor: colors.border, backgroundColor: colors.background }]}
+            style={[styles.qrPicker, { borderColor: colors.glassStroke, backgroundColor: colors.glassFill }]}
             onPress={() => pickImage(saveMayaQr)}
           >
             {mayaQrUri ? (
@@ -81,7 +81,7 @@ export default function PaymentQRScreen() {
             )}
           </TouchableOpacity>
           <TextInput
-            style={[styles.qrNameInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+            style={[styles.qrNameInput, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
             value={mayaCompanyName}
             onChangeText={saveMayaCompanyName}
             placeholder="e.g. My Store Maya"

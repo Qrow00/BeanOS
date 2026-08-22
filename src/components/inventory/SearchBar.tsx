@@ -1,5 +1,5 @@
 import { View, Text, TextInput, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 
 interface SearchBarProps {
@@ -12,7 +12,7 @@ export default function SearchBar({ value, onChangeText, placeholder = 'Search..
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, borderColor: colors.border }]}>
+    <View style={[styles.container, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
       <Text style={[styles.icon, { color: colors.textSecondary }]}>🔍</Text>
       <TextInput
         style={[styles.input, { color: colors.text }]}
@@ -31,9 +31,9 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: RADII.full,
     borderWidth: 1,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: SPACING.md,
     height: 44,
     marginBottom: SPACING.sm,
   },

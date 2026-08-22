@@ -1,4 +1,4 @@
-import type { Product, Coupon, User, PaymentMethod, HoldTransaction, Transaction } from './database';
+import type { Product, Coupon, User, Customer, PaymentMethod, HoldTransaction, Transaction } from './database';
 
 export interface AuthState {
   isAuthenticated: boolean;
@@ -6,6 +6,7 @@ export interface AuthState {
   isLoading: boolean;
   error: string | null;
   login: (userId: number, pin: string) => Promise<void>;
+  loginWithBiometric: (userId: number) => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
 }
@@ -23,6 +24,8 @@ export interface DiscountInput {
 export interface CartState {
   items: CartItem[];
   manualDiscount: DiscountInput | null;
+  loyaltyCustomer: Customer | null;
+  pointsToRedeem: number;
   isLoading: boolean;
   paymentMethod: PaymentMethod;
   addItem: (product: Product, quantity?: number) => void;
@@ -31,6 +34,9 @@ export interface CartState {
   clearCart: () => void;
   setManualDiscount: (type: 'percentage' | 'fixed', value: number) => void;
   clearManualDiscount: () => void;
+  setLoyaltyCustomer: (customer: Customer) => void;
+  clearLoyaltyCustomer: () => void;
+  setPointsToRedeem: (points: number) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   getSubtotal: () => number;
   getDiscount: () => number;

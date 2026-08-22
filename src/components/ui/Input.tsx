@@ -1,5 +1,5 @@
 import { View, Text, TextInput, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII, GLASS } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 
 interface InputProps {
@@ -33,7 +33,14 @@ export default function Input({
     <View style={styles.wrapper}>
       {label && <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>}
       <TextInput
-        style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+        style={[
+          styles.input,
+          {
+            backgroundColor: colors.glassFillStrong,
+            color: colors.text,
+            borderColor: colors.glassStroke,
+          },
+        ]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -61,8 +68,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   input: {
-    borderWidth: 1,
-    borderRadius: 10,
+    borderWidth: GLASS.strokeWidth,
+    borderRadius: RADII.sm,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm + 4,
     fontSize: FONT_SIZES.sm,

@@ -6,6 +6,7 @@ import { useThemeStore } from '../../../src/store/themeStore';
 import { useCouponStore } from '../../../src/store/couponStore';
 import Input from '../../../src/components/ui/Input';
 import Button from '../../../src/components/ui/Button';
+import GradientButton from '../../../src/components/ui/glass/GradientButton';
 
 export default function NewCouponScreen() {
   const router = useRouter();
@@ -34,8 +35,8 @@ export default function NewCouponScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Coupons</Text>
         </TouchableOpacity>
@@ -64,7 +65,7 @@ export default function NewCouponScreen() {
         />
       </View>
 
-      <Button
+      <GradientButton
         title="Add Coupon"
         onPress={handleSubmit}
         loading={isLoading}

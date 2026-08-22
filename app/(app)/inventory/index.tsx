@@ -1,18 +1,17 @@
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, FONT_SIZES, RADII, getCategoryColor } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useProductStore } from '../../../src/store/productStore';
 import ProductCard from '../../../src/components/inventory/ProductCard';
 import SearchBar from '../../../src/components/inventory/SearchBar';
+import GlassChip from '../../../src/components/ui/glass/GlassChip';
 
 export default function InventoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
-  const { width, height } = useWindowDimensions();
-  const isLandscape = width > height;
   const {
     fetchProducts,
     getFilteredProducts,
@@ -43,30 +42,17 @@ export default function InventoryScreen() {
         <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
       </View>
 
-      <TouchableOpacity
-        style={[styles.stocksBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => router.push('/(app)/inventory/stocks')}
-      >
-        <Ionicons name="cube-outline" size={18} color={colors.primary} />
-        <Text style={[styles.stocksBtnText, { color: colors.primary }]}>Recipe Stocks</Text>
-      </TouchableOpacity>
-
       {categories.length > 0 && (
         <View style={styles.categoryRow}>
-          <TouchableOpacity
-            style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.categoryText, { color: colors.textSecondary }, !selectedCategory && { color: '#fff' }]}>All</Text>
-          </TouchableOpacity>
+          <GlassChip label="All" active={!selectedCategory} onPress={() => setSelectedCategory(null)} />
           {categories.map(cat => (
-            <TouchableOpacity
+            <GlassChip
               key={cat}
-              style={[styles.categoryChip, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === cat && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              label={cat}
+              color={getCategoryColor(cat)}
+              active={selectedCategory === cat}
               onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-            >
-              <Text style={[styles.categoryText, { color: colors.textSecondary }, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-            </TouchableOpacity>
+            />
           ))}
         </View>
       )}
@@ -74,7 +60,7 @@ export default function InventoryScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => String(item.id)}
@@ -85,9 +71,10 @@ export default function InventoryScreen() {
             onPress={() => router.push(`/(app)/inventory/${item.id}`)}
           />
         )}
-        contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
+        contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
         refreshing={isLoading}
         onRefresh={fetchProducts}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -98,9 +85,15 @@ export default function InventoryScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
+        style={[styles.fab, { bottom: 96 }]}
         onPress={() => router.push('/(app)/inventory/new')}
       >
+        <LinearGradient
+          colors={[colors.primaryGradientFrom, colors.primaryGradientTo]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </View>
@@ -118,16 +111,6 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
     marginBottom: SPACING.sm,
   },
-  categoryChip: {
-    paddingHorizontal: SPACING.sm + 4,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  categoryText: {
-    fontSize: FONT_SIZES.xs,
-    fontWeight: '500',
-  },
   list: {
     flexGrow: 1,
   },
@@ -143,33 +126,20 @@ const styles = StyleSheet.create({
     right: 20,
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: RADII.full,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   fabText: {
     color: '#fff',
     fontSize: 28,
     fontWeight: '600',
     lineHeight: 30,
-  },
-  stocksBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: SPACING.sm,
-    marginVertical: SPACING.sm,
-  },
-  stocksBtnText: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '700',
   },
 });

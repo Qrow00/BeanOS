@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Card from '../../../src/components/ui/Card';
-import Button from '../../../src/components/ui/Button';
 
 export default function UsersScreen() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function UsersScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <FlatList
         data={users}
         keyExtractor={(item) => String(item.id)}
@@ -51,7 +51,7 @@ export default function UsersScreen() {
             <View style={styles.userInfo}>
               <Text style={[styles.username, { color: colors.text }]}>{item.username}</Text>
               <Text style={[styles.displayName, { color: colors.textSecondary }]}>{item.display_name}</Text>
-              <View style={[styles.roleBadge, item.role === 'admin' ? styles.adminBadge : styles.userBadge]}>
+              <View style={[styles.roleBadge, item.role === 'admin' ? { backgroundColor: colors.primarySurface } : { backgroundColor: colors.success + '22' }]}>
                 <Text style={[styles.roleText, { color: item.role === 'admin' ? colors.primary : colors.success }]}>
                   {item.role.toUpperCase()}
                 </Text>
@@ -72,9 +72,15 @@ export default function UsersScreen() {
       />
 
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: 12 }]}
+        style={[styles.fab, { bottom: 96 }]}
         onPress={() => router.push('/(app)/users/new')}
       >
+        <LinearGradient
+          colors={[colors.primaryGradientFrom, colors.primaryGradientTo]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
     </View>
@@ -109,14 +115,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: RADII.full,
     marginTop: 4,
-  },
-  adminBadge: {
-    backgroundColor: '#EEF2FF',
-  },
-  userBadge: {
-    backgroundColor: '#F0FDF4',
   },
   roleText: {
     fontSize: 10,

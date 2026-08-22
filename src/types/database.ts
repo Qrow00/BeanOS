@@ -45,10 +45,13 @@ export interface Sale {
   receipt_number: string;
   user_id: number;
   coupon_id: number | null;
+  customer_id: number | null;
   subtotal: number;
   discount_amount: number;
   total: number;
   payment_method: string;
+  points_earned: number;
+  points_redeemed: number;
   sale_date: string;
 }
 
@@ -80,14 +83,6 @@ export interface HoldTransaction {
   created_at: string;
 }
 
-export interface PriceHistory {
-  id: number;
-  product_id: number;
-  old_price: number;
-  new_price: number;
-  changed_at: string;
-}
-
 export interface Transaction {
   id: number;
   description: string;
@@ -99,17 +94,33 @@ export interface Transaction {
   created_at: string;
 }
 
-export interface RecipeItem {
+export interface Customer {
   id: number;
-  product_id: number;
-  ingredient_id: number;
-  quantity: number;
-  measurement: string | null;
+  code: string;
+  name: string;
+  phone: string | null;
+  points_balance: number;
+  lifetime_points: number;
+  is_active: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface RecipeItemWithName extends RecipeItem {
-  ingredient_name: string | null;
-  ingredient_category: string | null;
+export interface LoyaltyLedgerEntry {
+  id: number;
+  customer_id: number;
+  sale_id: number | null;
+  type: 'earn' | 'redeem' | 'adjust';
+  points: number;
+  description: string | null;
+  created_by: number;
+  created_at: string;
+}
+
+export interface LoyaltySaleData {
+  customerId: number;
+  pointsEarned: number;
+  pointsRedeemed: number;
 }
 
 export type PaymentMethod = 'cash' | 'card' | 'gcash' | 'maya';

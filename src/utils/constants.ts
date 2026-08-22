@@ -33,6 +33,20 @@ export const FONT_SIZES = {
   xxl: 32,
 };
 
+export const RADII = {
+  sm: 12,
+  md: 18,
+  lg: 24,
+  xl: 28,
+  full: 999,
+};
+
+export const GLASS = {
+  blurIntensity: 35,
+  blurIntensityStrong: 60,
+  strokeWidth: 1.2,
+};
+
 export const ROLES = {
   ADMIN: 'admin' as const,
   USER: 'user' as const,
@@ -57,6 +71,13 @@ export const COLOR_PRESETS = [
   '#FFC107', '#FF5722', '#9C27B0', '#FF6F00', '#607D8B',
   '#E91E63', '#F44336', '#00BCD4', '#795548', '#333333',
 ];
+
+// Breakpoints shared across screens
+export const BREAKPOINTS = {
+  tablet: 768,
+  wide: 1100,
+  posSideCart: 900,
+};
 
 export function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] || CATEGORY_COLORS.General;

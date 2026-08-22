@@ -1,5 +1,5 @@
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 
 interface QRCouponScannerProps {
@@ -11,8 +11,8 @@ export default function QRCouponScanner({ couponCode, scanned }: QRCouponScanner
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      <View style={[styles.qrPlaceholder, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+      <View style={[styles.qrPlaceholder, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
         <Text style={styles.qrEmoji}>📱</Text>
         <Text style={[styles.qrText, { color: colors.textSecondary }]}>
           {scanned && couponCode ? couponCode : 'QR Scanner Placeholder'}
@@ -24,7 +24,8 @@ export default function QRCouponScanner({ couponCode, scanned }: QRCouponScanner
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     alignItems: 'center',
@@ -32,7 +33,8 @@ const styles = StyleSheet.create({
   qrPlaceholder: {
     width: 120,
     height: 120,
-    borderRadius: 12,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useTransactionStore } from '../../../src/store/transactionStore';
 import Input from '../../../src/components/ui/Input';
-import Button from '../../../src/components/ui/Button';
+import GradientButton from '../../../src/components/ui/glass/GradientButton';
 
 export default function NewTransactionScreen() {
   const router = useRouter();
@@ -35,8 +35,8 @@ export default function NewTransactionScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
+      <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/finance')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Finance</Text>
         </TouchableOpacity>
@@ -45,16 +45,24 @@ export default function NewTransactionScreen() {
       </View>
       <View style={styles.typeRow}>
         <TouchableOpacity
-          style={[styles.typeBtn, { borderColor: colors.border }, type === 'income' && { backgroundColor: '#059669', borderColor: '#059669' }]}
+          style={[
+            styles.typeBtn,
+            { backgroundColor: colors.glassFill, borderColor: colors.glassStroke },
+            type === 'income' && { backgroundColor: colors.success + '22', borderColor: colors.success },
+          ]}
           onPress={() => setType('income')}
         >
-          <Text style={[styles.typeBtnText, { color: type === 'income' ? '#fff' : colors.text }]}>Income</Text>
+          <Text style={[styles.typeBtnText, { color: type === 'income' ? colors.success : colors.text }]}>Income</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.typeBtn, { borderColor: colors.border }, type === 'expense' && { backgroundColor: '#DC2626', borderColor: '#DC2626' }]}
+          style={[
+            styles.typeBtn,
+            { backgroundColor: colors.glassFill, borderColor: colors.glassStroke },
+            type === 'expense' && { backgroundColor: colors.danger + '22', borderColor: colors.danger },
+          ]}
           onPress={() => setType('expense')}
         >
-          <Text style={[styles.typeBtnText, { color: type === 'expense' ? '#fff' : colors.text }]}>Expense</Text>
+          <Text style={[styles.typeBtnText, { color: type === 'expense' ? colors.danger : colors.text }]}>Expense</Text>
         </TouchableOpacity>
       </View>
 
@@ -78,10 +86,10 @@ export default function NewTransactionScreen() {
         {['Profit', 'Salary', 'Rental', 'Refund', 'Commission', 'Fee', 'Loan', 'Miscellaneous', 'Custom'].map(c => (
           <TouchableOpacity
             key={c}
-            style={[styles.categoryChip, { borderColor: colors.border }, category === c && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            style={[styles.categoryChip, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }, category === c && { backgroundColor: colors.primarySurface, borderColor: colors.primary }]}
             onPress={() => setCategory(category === c ? '' : c)}
           >
-            <Text style={[styles.categoryChipText, { color: category === c ? '#fff' : colors.text }]}>{c}</Text>
+            <Text style={[styles.categoryChipText, { color: category === c ? colors.primary : colors.text }]}>{c}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -101,7 +109,7 @@ export default function NewTransactionScreen() {
         placeholder={new Date().toISOString().split('T')[0]}
       />
 
-      <Button
+      <GradientButton
         title={type === 'income' ? 'Add Income' : 'Add Expense'}
         onPress={handleSubmit}
         loading={isLoading}
@@ -131,8 +139,8 @@ const styles = StyleSheet.create({
   categoryChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    borderRadius: RADII.full,
+    borderWidth: 1,
   },
   categoryChipText: {
     fontSize: FONT_SIZES.sm,
@@ -146,8 +154,8 @@ const styles = StyleSheet.create({
   typeBtn: {
     flex: 1,
     height: 48,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

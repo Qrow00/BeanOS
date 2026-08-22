@@ -1,14 +1,23 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SPACING, FONT_SIZES, APP_NAME } from '../../src/utils/constants';
+import { SPACING, FONT_SIZES, RADII, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
 import { useProductStore } from '../../src/store/productStore';
 import { useThemeStore, lightTheme, darkTheme } from '../../src/store/themeStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import { getDatabase } from '../../src/database/connection';
 import { exportToExcel, importFromExcel } from '../../src/services/importExport';
+import {
+  isDeviceCapable,
+  isEnabledGlobally,
+  setEnabledGlobally,
+  isEnrolledForUser,
+  setEnrolledForUser,
+  getAuthMethodLabel,
+  promptBiometric,
+} from '../../src/services/biometrics';
 import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
 import * as Updates from 'expo-updates';
@@ -37,13 +46,44 @@ export default function SettingsScreen() {
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
   const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
+  const loyaltyEarnRate = useSettingsStore(s => s.loyaltyEarnRate);
+  const loyaltyPointValue = useSettingsStore(s => s.loyaltyPointValue);
+  const saveLoyaltyRates = useSettingsStore(s => s.saveLoyaltyRates);
+  const cardPageUrl = useSettingsStore(s => s.cardPageUrl);
+  const saveCardPageUrl = useSettingsStore(s => s.saveCardPageUrl);
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [earnRateInput, setEarnRateInput] = useState(String(loyaltyEarnRate));
+  const [pointValueInput, setPointValueInput] = useState(String(loyaltyPointValue));
+  const [cardUrlInput, setCardUrlInput] = useState(cardPageUrl);
+  const [bioCapable, setBioCapable] = useState(false);
+  const [bioLabel, setBioLabel] = useState('Biometrics');
+  const [globalBio, setGlobalBio] = useState(false);
+  const [userBio, setUserBio] = useState(false);
   const switchRef = useRef<View>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const capable = await isDeviceCapable();
+        const label = await getAuthMethodLabel();
+        const global = capable && (await isEnabledGlobally());
+        const enrolled = user && global ? await isEnrolledForUser(user.id) : false;
+        if (!cancelled) {
+          setBioCapable(capable);
+          setBioLabel(label);
+          setGlobalBio(global);
+          setUserBio(enrolled);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -120,24 +160,127 @@ export default function SettingsScreen() {
     });
   };
 
+  const handleToggleGlobalBiometric = async (v: boolean) => {
+    setGlobalBio(v);
+    if (!v) setUserBio(false);
+    await setEnabledGlobally(v);
+  };
+
+  const handleToggleUserBiometric = async (v: boolean) => {
+    if (!user) return;
+    if (v && !(await promptBiometric(`Confirm ${bioLabel} for ${user.display_name}`))) return;
+    setUserBio(v);
+    await setEnrolledForUser(user.id, v);
+  };
+
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: isLandscape ? 76 : 100 }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: isLandscape ? 76 : 100 }}>
         <Card style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
           <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
           <TextInput
-            style={[styles.storeNameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+            style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
             value={storeName}
             onChangeText={saveStoreName}
             placeholder="Store name"
             placeholderTextColor={colors.disabled}
           />
-          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+          <View style={[styles.infoRow, { borderBottomColor: colors.glassStroke }]}>
             <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
           </View>
         </Card>
+
+        <Card style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Biometric Login</Text>
+          {isAdmin() && (
+            <View style={styles.themeRow}>
+              <View style={styles.themeInfo}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Allow biometric login on this device</Text>
+                <Text style={[styles.bioHint, { color: colors.textSecondary }]}>
+                  {bioCapable ? `${bioLabel} detected` : 'No biometric hardware or enrollment found'}
+                </Text>
+              </View>
+              <Switch
+                value={globalBio}
+                disabled={!bioCapable}
+                onValueChange={handleToggleGlobalBiometric}
+                trackColor={{ false: colors.disabled, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </View>
+          )}
+          <View style={[styles.themeRow, isAdmin() && styles.bioSecondRow]}>
+            <View style={styles.themeInfo}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Sign in with my biometrics</Text>
+              <Text style={[styles.bioHint, { color: colors.textSecondary }]}>
+                {!bioCapable
+                  ? `${bioLabel} not available on this device`
+                  : !globalBio
+                    ? 'Currently unavailable'
+                    : userBio
+                      ? `You can sign in with ${bioLabel}`
+                      : 'Enable to skip your PIN'}
+              </Text>
+            </View>
+            <Switch
+              value={userBio && globalBio && bioCapable}
+              disabled={!globalBio || !bioCapable}
+              onValueChange={handleToggleUserBiometric}
+              trackColor={{ false: colors.disabled, true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+        </Card>
+
+        {isAdmin() && (
+          <Card style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Loyalty Program</Text>
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
+              Members earn 1 point per pesos spent, redeemable as discount
+            </Text>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Pesos spent per point earned</Text>
+            <TextInput
+              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              value={earnRateInput}
+              onChangeText={(t) => setEarnRateInput(t.replace(/[^.\d]/g, ''))}
+              onEndEditing={() => {
+                const v = Math.max(0.01, Number(earnRateInput) || 50);
+                setEarnRateInput(String(v));
+                saveLoyaltyRates(v, Number(pointValueInput) || loyaltyPointValue);
+              }}
+              keyboardType="decimal-pad"
+            />
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Discount value of 1 point (₱)</Text>
+            <TextInput
+              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              value={pointValueInput}
+              onChangeText={(t) => setPointValueInput(t.replace(/[^.\d]/g, ''))}
+              onEndEditing={() => {
+                const v = Math.max(0.01, Number(pointValueInput) || 1);
+                setPointValueInput(String(v));
+                saveLoyaltyRates(Number(earnRateInput) || loyaltyEarnRate, v);
+              }}
+              keyboardType="decimal-pad"
+            />
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Member card page URL</Text>
+            <TextInput
+              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              value={cardUrlInput}
+              onChangeText={setCardUrlInput}
+              onEndEditing={() => saveCardPageUrl(cardUrlInput)}
+              placeholder="https://your-card-page.netlify.app"
+              placeholderTextColor={colors.disabled}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
+              Host loyalty-card-page/index.html online (e.g. Netlify Drop), paste the link here so members can scan to download their card
+            </Text>
+          </Card>
+        )}
 
         <Card style={styles.section}>
           <View style={styles.themeRow}>
@@ -161,7 +304,7 @@ export default function SettingsScreen() {
             {ADMIN_NAV_LINKS.map((action, i) => (
               <TouchableOpacity
                 key={`nav-${i}`}
-                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
                 onPress={() => router.push(action.route as any)}
                 activeOpacity={0.7}
               >
@@ -178,7 +321,7 @@ export default function SettingsScreen() {
             {STAFF_NAV_LINKS.map((action, i) => (
               <TouchableOpacity
                 key={`staff-${i}`}
-                style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
                 onPress={() => router.push(action.route as any)}
                 activeOpacity={0.7}
               >
@@ -191,7 +334,7 @@ export default function SettingsScreen() {
         )}
 
         <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
           onPress={() => router.push('/(app)/brand-logo')}
           activeOpacity={0.7}
         >
@@ -201,7 +344,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
           onPress={() => router.push('/(app)/payment-qr')}
           activeOpacity={0.7}
         >
@@ -221,14 +364,14 @@ export default function SettingsScreen() {
 
         <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
           <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-            <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
               <FlatList
                 data={currencies}
                 keyExtractor={c => c.code}
                 renderItem={({ item: c }) => (
                   <TouchableOpacity
-                    style={[styles.currencyRow, { borderBottomColor: colors.border }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
+                    style={[styles.currencyRow, { borderBottomColor: colors.glassStroke }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
                     onPress={() => {
                       setCurrency(c.symbol, c.code);
                       setShowCurrencyModal(false);
@@ -291,7 +434,7 @@ export default function SettingsScreen() {
         </Card>
 
         <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: '#FF3B30' }]}
+          style={[styles.logoutBtn, { backgroundColor: colors.danger }]}
           onPress={() => { logout(); router.replace('/(auth)/login'); }}
           activeOpacity={0.7}
         >
@@ -312,7 +455,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: SPACING.md,
-    borderRadius: 14,
+    borderRadius: RADII.sm,
     borderWidth: 1,
     marginBottom: SPACING.sm,
   },
@@ -360,6 +503,13 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: SPACING.md,
   },
+  bioSecondRow: {
+    marginTop: SPACING.md,
+  },
+  bioHint: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
+  },
   currentCurrency: {
     fontSize: FONT_SIZES.md,
     fontWeight: '700',
@@ -370,7 +520,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.md,
-    borderRadius: 10,
+    borderRadius: RADII.sm,
     marginBottom: SPACING.xs,
   },
   currencySymbol: {
@@ -400,8 +550,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: RADII.xl,
+    borderTopRightRadius: RADII.xl,
+    borderWidth: 1,
+    borderBottomWidth: 0,
     padding: SPACING.lg,
     maxHeight: '60%',
   },
@@ -437,7 +589,7 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: RADII.sm,
     paddingVertical: 14,
     paddingHorizontal: 16,
     width: '100%',
@@ -458,7 +610,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: RADII.sm,
     padding: SPACING.lg,
     marginTop: SPACING.md,
     marginBottom: SPACING.xl + 20,

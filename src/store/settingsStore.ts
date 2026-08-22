@@ -12,6 +12,9 @@ export interface SettingsState {
   gcashCompanyName: string;
   mayaQrUri: string | null;
   mayaCompanyName: string;
+  loyaltyEarnRate: number;
+  loyaltyPointValue: number;
+  cardPageUrl: string;
   isLoading: boolean;
   loadSettings: (db: SQLiteDatabase) => Promise<void>;
   saveStoreName: (name: string) => Promise<void>;
@@ -21,6 +24,8 @@ export interface SettingsState {
   saveGcashCompanyName: (name: string) => Promise<void>;
   saveMayaQr: (uri: string) => Promise<void>;
   saveMayaCompanyName: (name: string) => Promise<void>;
+  saveLoyaltyRates: (earnRate: number, pointValue: number) => Promise<void>;
+  saveCardPageUrl: (url: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -32,6 +37,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   gcashCompanyName: '',
   mayaQrUri: null,
   mayaCompanyName: '',
+  loyaltyEarnRate: 50,
+  loyaltyPointValue: 1,
+  cardPageUrl: '',
   isLoading: true,
 
   loadSettings: async (db: SQLiteDatabase) => {
@@ -94,6 +102,30 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       );
       if (mayaName?.value) {
         set({ mayaCompanyName: mayaName.value });
+      }
+
+      const earnRate = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        'loyalty_earn_rate'
+      );
+      if (earnRate?.value && parseFloat(earnRate.value) > 0) {
+        set({ loyaltyEarnRate: parseFloat(earnRate.value) });
+      }
+
+      const pointValue = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        'loyalty_point_value'
+      );
+      if (pointValue?.value && parseFloat(pointValue.value) > 0) {
+        set({ loyaltyPointValue: parseFloat(pointValue.value) });
+      }
+
+      const cardPageUrl = await db.getFirstAsync<{ value: string }>(
+        'SELECT value FROM app_settings WHERE key = ?',
+        'loyalty_card_page_url'
+      );
+      if (cardPageUrl?.value) {
+        set({ cardPageUrl: cardPageUrl.value });
       }
     } catch {}
     set({ isLoading: false });
@@ -180,6 +212,38 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
         'maya_company_name',
         name
+      );
+    } catch {}
+  },
+
+  saveLoyaltyRates: async (earnRate: number, pointValue: number) => {
+    const earn = earnRate > 0 ? earnRate : 50;
+    const value = pointValue > 0 ? pointValue : 1;
+    set({ loyaltyEarnRate: earn, loyaltyPointValue: value });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'loyalty_earn_rate',
+        String(earn)
+      );
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'loyalty_point_value',
+        String(value)
+      );
+    } catch {}
+  },
+
+  saveCardPageUrl: async (url: string) => {
+    const clean = url.trim().replace(/\/+$/, '');
+    set({ cardPageUrl: clean });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'loyalty_card_page_url',
+        clean
       );
     } catch {}
   },

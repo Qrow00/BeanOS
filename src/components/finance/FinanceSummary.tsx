@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { SPACING, FONT_SIZES } from '../../utils/constants';
+import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
 
@@ -13,18 +13,23 @@ export default function FinanceSummary({ incomeTotal, expenseTotal, netTotal }: 
   const colors = useThemeStore(s => s.colors);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.surface }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke },
+      ]}
+    >
       <View style={styles.row}>
         <View style={styles.item}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Income</Text>
           <Text style={[styles.value, { color: colors.success }]}>{formatCurrency(incomeTotal)}</Text>
         </View>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={[styles.divider, { backgroundColor: colors.glassStroke }]} />
         <View style={styles.item}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Expenses</Text>
           <Text style={[styles.value, { color: colors.danger }]}>{formatCurrency(expenseTotal)}</Text>
         </View>
-        <View style={[styles.divider, { backgroundColor: colors.border }]} />
+        <View style={[styles.divider, { backgroundColor: colors.glassStroke }]} />
         <View style={styles.item}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Net</Text>
           <Text style={[styles.value, { color: netTotal >= 0 ? colors.success : colors.danger }]}>
@@ -38,13 +43,15 @@ export default function FinanceSummary({ incomeTotal, expenseTotal, netTotal }: 
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: RADII.md,
+    borderWidth: 1,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     elevation: 2,
   },
   row: {
