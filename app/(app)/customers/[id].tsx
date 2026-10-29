@@ -24,6 +24,8 @@ import type { LoyaltyLedgerEntry } from '../../../src/types/database';
 import GradientButton from '../../../src/components/ui/glass/GradientButton';
 import LoyaltyQrCard, { LoyaltyQrCardHandle } from '../../../src/components/customers/LoyaltyQrCard';
 import CardDownloadModal from '../../../src/components/customers/CardDownloadModal';
+import { formatDate } from '../../../src/utils/helpers';
+import { elasticScroll } from '../../../src/utils/motion';
 
 export default function CustomerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -98,7 +100,7 @@ export default function CustomerDetailScreen() {
       <View style={{ flex: 1 }}>
         <Text style={[styles.ledgerDesc, { color: colors.text }]} numberOfLines={1}>{item.description}</Text>
         <Text style={[styles.ledgerDate, { color: colors.disabled }]}>
-          {new Date(item.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+          {formatDate(item.created_at)}
         </Text>
       </View>
       <Text
@@ -125,8 +127,9 @@ export default function CustomerDetailScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-      <FlatList
-        data={ledger}
+              <FlatList
+                {...elasticScroll}
+                data={ledger}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderLedgerRow}
         showsVerticalScrollIndicator={false}

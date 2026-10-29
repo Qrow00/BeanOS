@@ -81,7 +81,7 @@ export default function QRPaymentModal({
   const companyName = type === 'gcash' ? gcashCompanyName : mayaCompanyName;
 
   return (
-    <Modal visible={visible} onClose={onClose} title={`Pay via ${label}`} modalStyle={{ maxHeight: '120%' }}>
+    <Modal visible={visible} onClose={onClose} title={`Pay via ${label}`}>
       <View style={styles.scrollContent}>
         {qrUri ? (
           <Image

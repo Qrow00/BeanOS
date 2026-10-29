@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { View, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useProductStore } from '../../../src/store/productStore';
@@ -8,6 +8,8 @@ import { getDatabase } from '../../../src/database/connection';
 import ProductForm from '../../../src/components/inventory/ProductForm';
 import Button from '../../../src/components/ui/Button';
 import { SPACING } from '../../../src/utils/constants';
+import { elasticScroll } from '../../../src/utils/motion';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -17,10 +19,15 @@ export default function EditProductScreen() {
   const { isAdmin } = useAuthStore();
   const product = products.find(p => p.id === Number(id));
   const scrollRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isLandscape = width > 500;
+  const tabBarHeight = isLandscape ? 68 : 62;
+  const bottomPadding = insets.bottom + tabBarHeight + 16;
 
   useEffect(() => {
-    if (!product) router.replace('/(app)/inventory');
-  }, [product]);
+    if (products.length > 0 && !product) router.replace('/(app)/inventory');
+  }, [product, products.length]);
 
   if (!product) return null;
 
@@ -69,8 +76,15 @@ export default function EditProductScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView ref={scrollRef} style={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...elasticScroll}
+        ref={scrollRef}
+        style={styles.container}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: bottomPadding }}
+        keyboardShouldPersistTaps="handled"
+      >
       <ProductForm
+        key={product.id}
         initial={product}
         onSubmit={handleUpdate}
         onCancel={() => router.replace('/(app)/inventory')}

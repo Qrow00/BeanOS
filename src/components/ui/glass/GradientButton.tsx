@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemeStore } from '../../../store/themeStore';
 import { FONT_SIZES, RADII, SPACING } from '../../../utils/constants';
+import { springs } from '../../../utils/motion';
 
 interface GradientButtonProps {
   title: string;
@@ -42,7 +43,11 @@ export default function GradientButton({
   const inactive = disabled || loading;
 
   const animate = (value: number) => {
-    Animated.spring(scale, { toValue: value, useNativeDriver: true, speed: 40, bounciness: 6 }).start();
+    Animated.spring(scale, {
+      toValue: value,
+      useNativeDriver: true,
+      ...(value < 1 ? springs.press : springs.release),
+    }).start();
   };
 
   return (

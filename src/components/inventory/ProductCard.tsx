@@ -1,10 +1,13 @@
 import { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native';
 import { SPACING, FONT_SIZES, RADII, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
+import { usePressScale } from '../../hooks/usePressScale';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface ProductCardProps {
   product: Product;
@@ -17,16 +20,20 @@ function ProductCard({ product, onPress }: ProductCardProps) {
   const outOfStock = product.stock_quantity <= 0;
   const isDrink = product.category.toLowerCase() === 'drink';
   const inCart = quantity > 0;
+  const { scale, onPressIn, onPressOut } = usePressScale(0.97);
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       style={[
         styles.card,
         { backgroundColor: colors.glassFill },
         inCart && { borderColor: colors.primary },
         outOfStock && { opacity: 0.55 },
+        { transform: [{ scale }] },
       ]}
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={outOfStock && !onPress}
       activeOpacity={0.7}
     >
@@ -61,7 +68,7 @@ function ProductCard({ product, onPress }: ProductCardProps) {
         )}
       </View>
       <Text style={[styles.price, { color: colors.text }]}>{formatCurrency(product.price)}</Text>
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 

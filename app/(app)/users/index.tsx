@@ -7,10 +7,14 @@ import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Card from '../../../src/components/ui/Card';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 export default function UsersScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const { isAdmin } = useAuthStore();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -38,11 +42,13 @@ export default function UsersScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...elasticScroll}
         data={users}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           const canEdit = isAdmin() || item.role === 'user';
           return (
+          <FadeInView index={index} onceKey={`${animationSession}-user-${item.id}`}>
           <TouchableOpacity
             onPress={canEdit ? () => router.push(`/(app)/users/new?id=${item.id}`) : undefined}
             activeOpacity={canEdit ? 0.7 : 1}
@@ -64,6 +70,7 @@ export default function UsersScreen() {
             )}
           </Card>
           </TouchableOpacity>
+          </FadeInView>
           );
         }}
         contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}

@@ -5,12 +5,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useCustomerStore } from '../../../src/store/customerStore';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 type Customer = ReturnType<typeof useCustomerStore.getState>['customers'][number];
 
 export default function CustomersScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const { customers, fetchCustomers, isLoading, deleteCustomer } = useCustomerStore();
   const [query, setQuery] = useState('');
   const { height } = useWindowDimensions();
@@ -85,31 +89,33 @@ export default function CustomersScreen() {
     );
   };
 
-  const renderItem = ({ item }: { item: Customer }) => (
-    <SwipeableRow item={item}>
-      <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.glassFillStrong, borderColor: item.is_active ? colors.glassStroke : colors.danger + '55' }]}
-        onPress={() => router.push(`/(app)/customers/${item.id}`)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-        </View>
-        <View style={styles.info}>
-          <Text style={[styles.name, { color: colors.text }]}>
-            {item.name}
-            {!item.is_active && <Text style={{ color: colors.danger }}> · inactive</Text>}
-          </Text>
-          <Text style={[styles.meta, { color: colors.textSecondary }]}>
-            {item.code}{item.phone ? ` · ${item.phone}` : ''}
-          </Text>
-        </View>
-        <View style={styles.pointsBox}>
-          <Text style={[styles.pointsValue, { color: colors.primary }]}>{item.points_balance}</Text>
-          <Text style={[styles.pointsLabel, { color: colors.textSecondary }]}>pts</Text>
-        </View>
-      </TouchableOpacity>
-    </SwipeableRow>
+  const renderItem = ({ item, index }: { item: Customer; index: number }) => (
+    <FadeInView index={index} onceKey={`${animationSession}-customer-${item.id}`}>
+      <SwipeableRow item={item}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.glassFillStrong, borderColor: item.is_active ? colors.glassStroke : colors.danger + '55' }]}
+          onPress={() => router.push(`/(app)/customers/${item.id}`)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={styles.info}>
+            <Text style={[styles.name, { color: colors.text }]}>
+              {item.name}
+              {!item.is_active && <Text style={{ color: colors.danger }}> · inactive</Text>}
+            </Text>
+            <Text style={[styles.meta, { color: colors.textSecondary }]}>
+              {item.code}{item.phone ? ` · ${item.phone}` : ''}
+            </Text>
+          </View>
+          <View style={styles.pointsBox}>
+            <Text style={[styles.pointsValue, { color: colors.primary }]}>{item.points_balance}</Text>
+            <Text style={[styles.pointsLabel, { color: colors.textSecondary }]}>pts</Text>
+          </View>
+        </TouchableOpacity>
+      </SwipeableRow>
+    </FadeInView>
   );
 
   return (
@@ -127,6 +133,7 @@ export default function CustomersScreen() {
       </View>
 
       <FlatList
+        {...elasticScroll}
         data={filtered}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}

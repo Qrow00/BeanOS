@@ -14,12 +14,16 @@ import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 import GlassCard from '../../../src/components/ui/glass/GlassCard';
 import GlassChip from '../../../src/components/ui/glass/GlassChip';
 import GlassPanel from '../../../src/components/ui/glass/GlassPanel';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 type DateFilter = 'all' | 'today' | 'week' | 'month';
 
 export default function SalesHistoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const { isAdmin } = useAuthStore();
   const bp = useBreakpoint();
   const [sales, setSales] = useState<(Sale & { items?: SaleItem[] })[]>([]);
@@ -109,7 +113,7 @@ export default function SalesHistoryScreen() {
     ).current;
 
     return (
-      <View style={{ marginBottom: SPACING.sm }}>
+      <View style={{ marginBottom: 0 }}>
         <View style={{ borderRadius: RADII.md, overflow: 'hidden' }}>
           <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
             {children}
@@ -168,6 +172,7 @@ export default function SalesHistoryScreen() {
         change={sale.payment_method === 'cash' ? 0 : 0}
         cashierName=""
         onNewSale={() => setSelectedSale(null)}
+        date={sale.sale_date}
       />
     );
   }
@@ -179,7 +184,7 @@ export default function SalesHistoryScreen() {
     { key: 'month', label: 'Month' },
   ];
 
-  const renderSaleItem = ({ item }: { item: Sale }) => {
+  const renderSaleItem = ({ item, index }: { item: Sale; index: number }) => {
     const card = (
       <TouchableOpacity onPress={() => handleViewReceipt(item)}>
         <GlassCard
@@ -200,7 +205,11 @@ export default function SalesHistoryScreen() {
         </GlassCard>
       </TouchableOpacity>
     );
-    return isAdmin() ? <SwipeableRow item={item}>{card}</SwipeableRow> : card;
+    return (
+      <FadeInView index={index} onceKey={`${animationSession}-${filter}-sale-${item.id}`}>
+        {isAdmin() ? <SwipeableRow item={item}>{card}</SwipeableRow> : card}
+      </FadeInView>
+    );
   };
 
   const listContent = (
@@ -217,6 +226,7 @@ export default function SalesHistoryScreen() {
       </View>
 
       <FlatList
+        {...elasticScroll}
         data={sales}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderSaleItem}
@@ -250,7 +260,7 @@ export default function SalesHistoryScreen() {
           {listContent}
         </View>
 
-        <GlassPanel radius={RADII.xl} androidRealBlur intensity={50} style={styles.detailPane}>
+        <View style={styles.detailPane}>
           {selectedSale ? (
             <ReceiptScreen
               receiptNumber={selectedSale.sale.receipt_number}
@@ -263,14 +273,17 @@ export default function SalesHistoryScreen() {
               change={selectedSale.sale.payment_method === 'cash' ? 0 : 0}
               cashierName=""
               onNewSale={() => setSelectedSale(null)}
+              date={selectedSale.sale.sale_date}
             />
           ) : (
-            <View style={styles.emptyDetail}>
-              <Text style={[styles.emptyDetailIcon, { color: colors.disabled }]}>🧾</Text>
-              <Text style={[styles.emptyDetailText, { color: colors.textSecondary }]}>Select a sale to view its receipt</Text>
-            </View>
+            <GlassPanel radius={RADII.xl} style={{ flex: 1 }}>
+              <View style={styles.emptyDetail}>
+                <Text style={[styles.emptyDetailIcon, { color: colors.disabled }]}>🧾</Text>
+                <Text style={[styles.emptyDetailText, { color: colors.textSecondary }]}>Select a sale to view its receipt</Text>
+              </View>
+            </GlassPanel>
           )}
-        </GlassPanel>
+        </View>
 
         <ConfirmModal
           visible={pendingDelete !== null}
@@ -348,7 +361,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   saleCard: {
-    marginBottom: 0,
+    marginBottom: SPACING.sm,
+    borderWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
   },
   saleHeader: {
     flexDirection: 'row',

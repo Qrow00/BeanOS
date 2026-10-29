@@ -1,17 +1,18 @@
 import { useEffect } from 'react';
-import { View, useWindowDimensions, Platform, StyleSheet } from 'react-native';
+import { View, useWindowDimensions, Platform, StyleSheet, Easing } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as NavigationBar from 'expo-navigation-bar';
 import { useAuthStore } from '../../src/store/authStore';
 import { useThemeStore } from '../../src/store/themeStore';
+import { useTranslation } from '../../src/i18n';
 import ThemeExpandOverlay from '../../src/components/ui/ThemeExpandOverlay';
+import AnimatedTabIcon from '../../src/components/ui/AnimatedTabIcon';
 
 export default function AppLayout() {
-  const { isAuthenticated, isAdmin } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const colors = useThemeStore(s => s.colors);
   const mode = useThemeStore(s => s.mode);
   const themeOverlay = useThemeStore(s => s.themeOverlay);
@@ -19,6 +20,7 @@ export default function AppLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { t } = useTranslation();
 
   const compact = width < 500;
   const floatingWidth = Math.min(width - 32, 560);
@@ -45,6 +47,11 @@ export default function AppLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
+          animation: 'shift',
+          transitionSpec: {
+            animation: 'timing',
+            config: { duration: 320, easing: Easing.bezier(0.2, 0, 0, 1) },
+          },
           sceneStyle: { paddingTop: insets.top, backgroundColor: 'transparent' },
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textSecondary,
@@ -87,22 +94,22 @@ export default function AppLayout() {
         <Tabs.Screen
           name="pos/index"
           options={{
-            title: 'Point of Sale',
+            title: t('pos_title'),
 
-            tabBarLabel: 'POS',
+            tabBarLabel: t('tab_pos'),
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'cart' : 'cart-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="cart" outlineName="cart-outline" focused={focused} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="pos/history"
           options={{
-            title: 'Sales History',
+            title: t('history_title'),
 
-            tabBarLabel: 'History',
+            tabBarLabel: t('tab_history'),
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="receipt" outlineName="receipt-outline" focused={focused} color={color} />
             ),
           }}
         />
@@ -119,57 +126,70 @@ export default function AppLayout() {
         <Tabs.Screen
           name="customers/index"
           options={{
-            title: 'Members',
+            title: t('customers_title'),
 
-            tabBarLabel: 'Members',
-            href: isAdmin() ? undefined : null,
+            tabBarLabel: t('tab_members'),
+            href: null,
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'card' : 'card-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="card" outlineName="card-outline" focused={focused} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="inventory/index"
           options={{
-            title: 'Inventory',
+            title: t('inventory_title'),
 
-            tabBarLabel: 'Inventory',
+            tabBarLabel: t('tab_inventory'),
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'cube' : 'cube-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="cube" outlineName="cube-outline" focused={focused} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="finance/index"
           options={{
-            title: 'Finance',
+            title: t('finance_title'),
 
-            tabBarLabel: 'Finance',
-            href: isAdmin() ? undefined : null,
+            tabBarLabel: t('tab_finance'),
+            href: null,
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'wallet' : 'wallet-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="wallet" outlineName="wallet-outline" focused={focused} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="users/index"
           options={{
-            title: 'Users',
+            title: t('users_title'),
 
-            tabBarLabel: 'Users',
+            tabBarLabel: t('tab_users'),
+            href: null,
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'people' : 'people-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="people" outlineName="people-outline" focused={focused} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
-            title: 'Settings',
+            title: t('settings_title'),
 
-            tabBarLabel: 'Settings',
+            tabBarLabel: t('tab_settings'),
+            href: null,
             tabBarIcon: ({ focused, color }) => (
-              <Ionicons name={focused ? 'settings' : 'settings-outline'} size={26} color={color} />
+              <AnimatedTabIcon name="settings" outlineName="settings-outline" focused={focused} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="more"
+          options={{
+            title: t('more_heading'),
+
+            tabBarLabel: t('tab_more'),
+            tabBarIcon: ({ focused, color }) => (
+              <AnimatedTabIcon name="ellipsis-horizontal" outlineName="ellipsis-horizontal-outline" focused={focused} color={color} />
             ),
           }}
         />
@@ -194,3 +214,4 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+

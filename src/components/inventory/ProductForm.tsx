@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, StyleSheet, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES, RADII, COLOR_PRESETS, getProductIconColor } from '../../utils/constants';
@@ -30,6 +30,17 @@ export default function ProductForm({ initial, onSubmit, onCancel, submitLabel =
 
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showUnitModal, setShowUnitModal] = useState(false);
+
+  useEffect(() => {
+    setName(initial?.name ?? '');
+    setPrice(initial ? String(initial.price) : '');
+    setStock(initial ? String(initial.stock_quantity) : '');
+    setCategory(initial?.category ?? '');
+    setBarcode(initial?.barcode ?? '');
+    setImageUri(initial?.image_uri ?? '');
+    setStockUnit(initial?.stock_unit ?? 'pcs');
+    setIconColor(initial?.icon_color ?? '');
+  }, [initial?.id]);
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();

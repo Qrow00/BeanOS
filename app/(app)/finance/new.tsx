@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
+import { elasticScroll } from '../../../src/utils/motion';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useTransactionStore } from '../../../src/store/transactionStore';
@@ -35,7 +36,11 @@ export default function NewTransactionScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        {...elasticScroll}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
       <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/finance')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Finance</Text>

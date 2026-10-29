@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase } from '../database/connection';
-import { setCurrencySymbol } from '../utils/helpers';
+import { setCurrencySymbol, setLocale, setTimeZone } from '../utils/helpers';
 
 export interface SettingsState {
   storeName: string;
   currencySymbol: string;
   currencyCode: string;
+  locale: string;
+  timeZone: string;
   brandLogoUri: string | null;
   gcashQrUri: string | null;
   gcashCompanyName: string;
@@ -19,6 +21,8 @@ export interface SettingsState {
   loadSettings: (db: SQLiteDatabase) => Promise<void>;
   saveStoreName: (name: string) => Promise<void>;
   setCurrency: (symbol: string, code: string) => Promise<void>;
+  saveLocale: (locale: string) => Promise<void>;
+  saveTimeZone: (timeZone: string) => Promise<void>;
   saveBrandLogo: (uri: string) => Promise<void>;
   saveGcashQr: (uri: string) => Promise<void>;
   saveGcashCompanyName: (name: string) => Promise<void>;
@@ -32,6 +36,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   storeName: 'BeanOS',
   currencySymbol: '₱',
   currencyCode: 'PHP',
+  locale: 'en-US',
+  timeZone: '',
   brandLogoUri: null,
   gcashQrUri: null,
   gcashCompanyName: '',
@@ -56,14 +62,33 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         'SELECT value FROM app_settings WHERE key = ?',
         'app_currency'
       );
-      if (currency?.value) {
-        const parts = currency.value.split('|');
-        if (parts.length === 2) {
-          const [code, symbol] = parts;
-          setCurrencySymbol(symbol);
-          set({ currencySymbol: symbol, currencyCode: code });
+        if (currency?.value) {
+          const parts = currency.value.split('|');
+          if (parts.length === 2) {
+            const [code, symbol] = parts;
+            setCurrencySymbol(symbol);
+            set({ currencySymbol: symbol, currencyCode: code });
+          }
         }
-      }
+
+        const localeRow = await db.getFirstAsync<{ value: string }>(
+          'SELECT value FROM app_settings WHERE key = ?',
+          'app_locale'
+        );
+        if (localeRow?.value) {
+          setLocale(localeRow.value);
+          set({ locale: localeRow.value });
+        }
+
+        const timeZoneRow = await db.getFirstAsync<{ value: string }>(
+          'SELECT value FROM app_settings WHERE key = ?',
+          'app_timezone'
+        );
+        if (timeZoneRow?.value !== undefined && timeZoneRow?.value !== null) {
+          setTimeZone(timeZoneRow.value);
+          set({ timeZone: timeZoneRow.value });
+        }
+
       const logo = await db.getFirstAsync<{ value: string }>(
         'SELECT value FROM app_settings WHERE key = ?',
         'brand_logo'
@@ -152,6 +177,32 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
         'app_currency',
         `${code}|${symbol}`
+      );
+    } catch {}
+  },
+
+  saveLocale: async (locale: string) => {
+    setLocale(locale);
+    set({ locale });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'app_locale',
+        locale
+      );
+    } catch {}
+  },
+
+  saveTimeZone: async (timeZone: string) => {
+    setTimeZone(timeZone);
+    set({ timeZone });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'app_timezone',
+        timeZone
       );
     } catch {}
   },

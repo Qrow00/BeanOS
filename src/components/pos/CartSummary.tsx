@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { formatCurrency } from '../../utils/helpers';
+import AnimatedCurrency from '../ui/AnimatedCurrency';
 
 interface CartSummaryProps {
   subtotal: number;
@@ -19,7 +20,7 @@ export default function CartSummary({ subtotal, discount, total, itemCount, disc
     <View style={[styles.container, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
       <View style={styles.row}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Subtotal</Text>
-        <Text style={[styles.value, { color: colors.text }]}>{formatCurrency(subtotal)}</Text>
+        <AnimatedCurrency value={subtotal} style={[styles.value, { color: colors.text }]} />
       </View>
       {discount > 0 && (
         <View style={styles.row}>
@@ -38,7 +39,7 @@ export default function CartSummary({ subtotal, discount, total, itemCount, disc
       <View style={[styles.divider, { backgroundColor: colors.glassStroke }]} />
       <View style={styles.row}>
         <Text style={[styles.totalLabel, { color: colors.text }]}>Total ({itemCount} items)</Text>
-        <Text style={[styles.totalValue, { color: colors.primary }]}>{formatCurrency(total)}</Text>
+        <AnimatedCurrency value={total} style={[styles.totalValue, { color: colors.primary }]} />
       </View>
     </View>
   );

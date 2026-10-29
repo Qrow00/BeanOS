@@ -2,6 +2,7 @@ import { View, Text, ScrollView, StyleSheet, Alert, TouchableOpacity, TextInput,
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
+import { elasticScroll } from '../../src/utils/motion';
 import { useThemeStore } from '../../src/store/themeStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import Card from '../../src/components/ui/Card';
@@ -38,7 +39,7 @@ export default function PaymentQRScreen() {
         <View style={{ width: 80 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...elasticScroll} contentContainerStyle={styles.content}>
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>GCash</Text>
           <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Set QR code image and company name for GCash payments</Text>

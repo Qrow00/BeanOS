@@ -8,10 +8,14 @@ import { useProductStore } from '../../../src/store/productStore';
 import ProductCard from '../../../src/components/inventory/ProductCard';
 import SearchBar from '../../../src/components/inventory/SearchBar';
 import GlassChip from '../../../src/components/ui/glass/GlassChip';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 export default function InventoryScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const {
     fetchProducts,
     getFilteredProducts,
@@ -62,14 +66,17 @@ export default function InventoryScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...elasticScroll}
         data={filteredProducts}
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={renderListHeader}
-        renderItem={({ item }) => (
-          <ProductCard
-            product={item}
-            onPress={() => router.push(`/(app)/inventory/${item.id}`)}
-          />
+        renderItem={({ item, index }) => (
+          <FadeInView index={index} onceKey={`${animationSession}-${selectedCategory}-product-${item.id}`}>
+            <ProductCard
+              product={item}
+              onPress={() => router.push(`/(app)/inventory/${item.id}`)}
+            />
+          </FadeInView>
         )}
         contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
         refreshing={isLoading}

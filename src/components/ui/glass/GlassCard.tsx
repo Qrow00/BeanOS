@@ -1,7 +1,10 @@
 import { ReactNode } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, StyleProp, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, StyleProp, ViewStyle, Animated } from 'react-native';
 import { useThemeStore } from '../../../store/themeStore';
 import { FONT_SIZES, RADII, SPACING } from '../../../utils/constants';
+import { usePressScale } from '../../../hooks/usePressScale';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface GlassCardProps {
   children?: ReactNode;
@@ -13,6 +16,7 @@ interface GlassCardProps {
 export default function GlassCard({ children, style, onPress, disabled }: GlassCardProps) {
   const colors = useThemeStore(s => s.colors);
   const mode = useThemeStore(s => s.mode);
+  const { scale, onPressIn, onPressOut } = usePressScale(0.97);
 
   const cardStyle = [
     styles.card,
@@ -27,9 +31,16 @@ export default function GlassCard({ children, style, onPress, disabled }: GlassC
 
   if (onPress) {
     return (
-      <TouchableOpacity style={cardStyle} onPress={onPress} disabled={disabled} activeOpacity={0.75}>
+      <AnimatedTouchable
+        style={[...cardStyle, { transform: [{ scale }] }]}
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        disabled={disabled}
+        activeOpacity={0.9}
+      >
         {children}
-      </TouchableOpacity>
+      </AnimatedTouchable>
     );
   }
   return <View style={cardStyle}>{children}</View>;

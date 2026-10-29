@@ -1,38 +1,80 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
 import { useAuthStore } from '../../../src/store/authStore';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useTransactionStore } from '../../../src/store/transactionStore';
+import { getDatabase } from '../../../src/database/connection';
+import * as salesRepo from '../../../src/database/sales';
+import type { Sale, Transaction } from '../../../src/types/database';
 import FinanceSummary from '../../../src/components/finance/FinanceSummary';
 import TransactionCard from '../../../src/components/finance/TransactionCard';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 type TabType = 'income' | 'expense';
+type FinanceEntry = Transaction & { source: 'manual' | 'sale' };
+
+function saleToEntry(sale: Sale): FinanceEntry {
+  return {
+    id: -sale.id,
+    description: `Sale ${sale.receipt_number}`,
+    amount: sale.total,
+    category: 'Sales',
+    type: 'income',
+    entry_date: sale.sale_date,
+    created_by: sale.user_id,
+    created_at: sale.sale_date,
+    source: 'sale',
+  };
+}
 
 export default function FinanceScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const { isAdmin } = useAuthStore();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const { transactions, fetchTransactions, deleteTransaction, isLoading } = useTransactionStore();
   const [tab, setTab] = useState<TabType>('income');
+  const [sales, setSales] = useState<Sale[]>([]);
 
   useEffect(() => {
     if (!isAdmin()) router.replace('/(app)/pos');
   }, []);
 
-  useEffect(() => {
-    fetchTransactions();
+  const loadSales = useCallback(async () => {
+    try {
+      const db = await getDatabase();
+      setSales(await salesRepo.getAllSales(db));
+    } catch {
+      setSales([]);
+    }
   }, []);
 
-  const incomeTotal = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expenseTotal = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  useFocusEffect(
+    useCallback(() => {
+      fetchTransactions();
+      loadSales();
+    }, [fetchTransactions, loadSales])
+  );
+
+  const saleEntries = sales.map(saleToEntry);
+
+  const entries: FinanceEntry[] = [
+    ...transactions.map(t => ({ ...t, source: 'manual' as const })),
+    ...saleEntries,
+  ].sort((a, b) => b.entry_date.localeCompare(a.entry_date) || b.id - a.id);
+
+  const incomeTotal = entries.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expenseTotal = entries.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netTotal = incomeTotal - expenseTotal;
 
-  const filtered = transactions.filter(t => t.type === tab);
+  const filtered = entries.filter(t => t.type === tab);
 
   const tabs: { key: TabType; label: string }[] = [
     { key: 'income', label: 'Income' },
@@ -70,18 +112,24 @@ export default function FinanceScreen() {
           ))}
         </View>
 
-        <FlatList
-          data={filtered}
+      <FlatList
+        {...elasticScroll}
+        data={filtered}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <TransactionCard
-              transaction={item}
-              onDelete={isAdmin() ? () => deleteTransaction(item.id) : undefined}
-            />
+          renderItem={({ item, index }) => (
+            <FadeInView index={index} onceKey={`${animationSession}-${tab}-${item.source}-${item.id}`}>
+              <TransactionCard
+                transaction={item}
+                onDelete={item.source === 'manual' && isAdmin() ? () => deleteTransaction(item.id) : undefined}
+              />
+            </FadeInView>
           )}
           contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
           refreshing={isLoading}
-          onRefresh={fetchTransactions}
+          onRefresh={() => {
+            fetchTransactions();
+            loadSales();
+          }}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>

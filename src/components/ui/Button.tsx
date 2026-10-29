@@ -1,7 +1,11 @@
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { Animated, Text, StyleSheet, ActivityIndicator, View } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
+import { usePressScale } from '../../hooks/usePressScale';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface ButtonProps {
   title: string;
@@ -14,6 +18,7 @@ interface ButtonProps {
 
 export default function Button({ title, onPress, variant = 'primary', loading = false, disabled = false, style }: ButtonProps) {
   const colors = useThemeStore(s => s.colors);
+  const { scale, onPressIn, onPressOut } = usePressScale(0.96);
 
   const isGradient = variant === 'primary';
   const isOutline = variant === 'outline';
@@ -25,7 +30,7 @@ export default function Button({ title, onPress, variant = 'primary', loading = 
     : colors.text;
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       style={[
         styles.btn,
         {
@@ -33,11 +38,14 @@ export default function Button({ title, onPress, variant = 'primary', loading = 
           borderColor: isOutline || isGradient ? colors.primary : colors.glassStroke,
         },
         (disabled || loading) && { opacity: 0.5 },
+        { transform: [{ scale }] },
         style,
       ]}
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={disabled || loading}
-      activeOpacity={0.75}
+      activeOpacity={0.9}
     >
       {isGradient && !loading ? (
         <LinearGradient
@@ -54,7 +62,7 @@ export default function Button({ title, onPress, variant = 'primary', loading = 
           <Text style={[styles.text, { color: textColor }]}>{title}</Text>
         )}
       </View>
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 

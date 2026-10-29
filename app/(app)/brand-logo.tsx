@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../src/utils/constants';
+import { elasticScroll } from '../../src/utils/motion';
 import { useThemeStore } from '../../src/store/themeStore';
 import Logo from '../../src/components/ui/Logo';
 import Card from '../../src/components/ui/Card';
@@ -19,7 +20,7 @@ export default function BrandLogoScreen() {
         <View style={{ width: 80 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView {...elasticScroll} contentContainerStyle={styles.content}>
         <Card>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Light Theme</Text>
           <View style={styles.logoContainer}>

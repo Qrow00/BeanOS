@@ -1,11 +1,15 @@
-import { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { memo, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SPACING, FONT_SIZES, RADII, getProductIconColor } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
 import { useCartStore } from '../../store/cartStore';
 import { formatCurrency } from '../../utils/helpers';
 import type { Product } from '../../types/database';
+import { usePressScale } from '../../hooks/usePressScale';
+import { springs } from '../../utils/motion';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface ProductTileProps {
   product: Product;
@@ -18,21 +22,37 @@ function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
   const quantity = useCartStore(s => s.items.find(i => i.product.id === product.id)?.quantity ?? 0);
   const outOfStock = product.stock_quantity <= 0;
   const inCart = quantity > 0;
+  const { scale, onPressIn, onPressOut } = usePressScale(0.95);
+  const badgeScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (quantity > 0) {
+      badgeScale.setValue(1.4);
+      Animated.spring(badgeScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        ...springs.bouncy,
+      }).start();
+    }
+  }, [quantity]);
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       style={[
         styles.tile,
         { backgroundColor: colors.glassFill, borderColor: inCart ? colors.primary : colors.glassStroke, width: tileWidth, height: tileWidth },
+        { transform: [{ scale }] },
       ]}
       onPress={onAddToCart}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={outOfStock}
-      activeOpacity={0.7}
+      activeOpacity={0.9}
     >
       {inCart && (
-        <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+        <Animated.View style={[styles.badge, { backgroundColor: colors.primary, transform: [{ scale: badgeScale }] }]}>
           <Text style={styles.badgeText}>{quantity}</Text>
-        </View>
+        </Animated.View>
       )}
       <View style={styles.avatarWrapper}>
         <View style={[styles.avatarRing, { borderColor: getProductIconColor(product.icon_color, product.category) + '55' }]}>
@@ -54,7 +74,7 @@ function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
         {outOfStock && <Text style={[styles.outText, { color: colors.danger }]}>Out of Stock</Text>}
       </View>
       {outOfStock && <View style={styles.disabledTint} />}
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 

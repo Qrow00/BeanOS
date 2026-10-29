@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES, RADII, APP_NAME } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
 import { useProductStore } from '../../src/store/productStore';
 import { useThemeStore, lightTheme, darkTheme } from '../../src/store/themeStore';
 import { useSettingsStore } from '../../src/store/settingsStore';
 import { getDatabase } from '../../src/database/connection';
+import { formatDate } from '../../src/utils/helpers';
 import { exportToExcel, importFromExcel } from '../../src/services/importExport';
 import {
   isDeviceCapable,
@@ -22,6 +23,7 @@ import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
+import { elasticScroll } from '../../src/utils/motion';
 
 const currencies = [
   { symbol: '₱', code: 'PHP', label: 'Philippine Peso' },
@@ -31,21 +33,115 @@ const currencies = [
   { symbol: '¥', code: 'JPY', label: 'Japanese Yen' },
 ];
 
-const STAFF_NAV_LINKS = [
-  { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
-] as const;
+const LANGUAGES = [
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'en-PH', label: 'English (Philippines)' },
+  { value: 'en-GB', label: 'English (UK)' },
+  { value: 'fil-PH', label: 'Filipino' },
+  { value: 'es-ES', label: 'Español' },
+  { value: 'id-ID', label: 'Bahasa Indonesia' },
+  { value: 'ja-JP', label: '日本語' },
+  { value: 'ko-KR', label: '한국어' },
+  { value: 'zh-CN', label: '中文 (简体)' },
+  { value: 'ar-SA', label: 'العربية' },
+];
 
-const ADMIN_NAV_LINKS = [
-  { title: 'Sales History', icon: '📋', route: '/(app)/pos/history' },
-] as const;
+const TIMEZONES = [
+  { value: '', label: 'Device default' },
+  { value: 'Asia/Manila', label: 'Manila' },
+  { value: 'Asia/Singapore', label: 'Singapore' },
+  { value: 'Asia/Hong_Kong', label: 'Hong Kong' },
+  { value: 'Asia/Shanghai', label: 'Shanghai' },
+  { value: 'Asia/Taipei', label: 'Taipei' },
+  { value: 'Asia/Tokyo', label: 'Tokyo' },
+  { value: 'Asia/Seoul', label: 'Seoul' },
+  { value: 'Asia/Bangkok', label: 'Bangkok' },
+  { value: 'Asia/Jakarta', label: 'Jakarta' },
+  { value: 'Asia/Kolkata', label: 'Kolkata' },
+  { value: 'Asia/Dubai', label: 'Dubai' },
+  { value: 'Asia/Riyadh', label: 'Riyadh' },
+  { value: 'Europe/Moscow', label: 'Moscow' },
+  { value: 'Europe/London', label: 'London' },
+  { value: 'Europe/Paris', label: 'Paris' },
+  { value: 'Europe/Berlin', label: 'Berlin' },
+  { value: 'Africa/Cairo', label: 'Cairo' },
+  { value: 'Africa/Johannesburg', label: 'Johannesburg' },
+  { value: 'America/Sao_Paulo', label: 'São Paulo' },
+  { value: 'America/New_York', label: 'New York' },
+  { value: 'America/Chicago', label: 'Chicago' },
+  { value: 'America/Denver', label: 'Denver' },
+  { value: 'America/Los_Angeles', label: 'Los Angeles' },
+  { value: 'Pacific/Honolulu', label: 'Honolulu' },
+  { value: 'Australia/Sydney', label: 'Sydney' },
+  { value: 'Pacific/Auckland', label: 'Auckland' },
+  { value: 'UTC', label: 'UTC' },
+];
+
+type IconName = keyof typeof Ionicons.glyphMap;
+
+function SectionHeader({ title, hint }: { title: string; hint?: string }) {
+  const colors = useThemeStore(s => s.colors);
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      {hint ? <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+function IconBadge({ name }: { name: IconName }) {
+  const colors = useThemeStore(s => s.colors);
+  return (
+    <View style={[styles.iconBadge, { backgroundColor: colors.primarySurface }]}>
+      <Ionicons name={name} size={18} color={colors.primary} />
+    </View>
+  );
+}
+
+function SettingRow({
+  icon,
+  title,
+  value,
+  onPress,
+  last,
+}: {
+  icon: IconName;
+  title: string;
+  value?: string;
+  onPress: () => void;
+  last?: boolean;
+}) {
+  const colors = useThemeStore(s => s.colors);
+  return (
+    <TouchableOpacity
+      style={[styles.row, !last && styles.rowDivider, { borderBottomColor: colors.glassStroke }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <IconBadge name={icon} />
+      <Text style={[styles.rowTitle, styles.rowTitleFlex, { color: colors.text }]} numberOfLines={1}>
+        {title}
+      </Text>
+      {value ? (
+        <Text style={[styles.rowValue, { color: colors.textSecondary }]} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+    </TouchableOpacity>
+  );
+}
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { user, isAdmin, logout } = useAuthStore();
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
   const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
+  const locale = useSettingsStore(s => s.locale);
+  const timeZone = useSettingsStore(s => s.timeZone);
+  const saveLocale = useSettingsStore(s => s.saveLocale);
+  const saveTimeZone = useSettingsStore(s => s.saveTimeZone);
   const loyaltyEarnRate = useSettingsStore(s => s.loyaltyEarnRate);
   const loyaltyPointValue = useSettingsStore(s => s.loyaltyPointValue);
   const saveLoyaltyRates = useSettingsStore(s => s.saveLoyaltyRates);
@@ -56,6 +152,8 @@ export default function SettingsScreen() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showTimeZoneModal, setShowTimeZoneModal] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [earnRateInput, setEarnRateInput] = useState(String(loyaltyEarnRate));
   const [pointValueInput, setPointValueInput] = useState(String(loyaltyPointValue));
@@ -117,6 +215,20 @@ export default function SettingsScreen() {
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true);
     try {
+      const diagnostic = [
+        `Channel: ${Updates.channel || 'none'}`,
+        `Runtime: ${Updates.runtimeVersion || 'unknown'}`,
+        `Update ID: ${Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}`,
+      ].join('\n');
+
+      if (!Updates.isEnabled) {
+        Alert.alert(
+          'Updates Not Enabled',
+          `This build cannot receive over-the-air updates.\n\n${diagnostic}\n\nRebuild with an EAS profile that has a channel (preview or production).`
+        );
+        return;
+      }
+
       const result = await Updates.checkForUpdateAsync();
       if (result.isAvailable) {
         Alert.alert(
@@ -129,22 +241,28 @@ export default function SettingsScreen() {
               onPress: async () => {
                 try {
                   await Updates.fetchUpdateAsync();
-                  await Updates.reloadAsync();
-                } catch {
-                  Alert.alert('Error', 'Failed to download update');
+                  Alert.alert('Update Ready', 'Restarting to apply the update...', [
+                    { text: 'OK', onPress: () => Updates.reloadAsync() },
+                  ]);
+                } catch (e: any) {
+                  Alert.alert(
+                    'Download Failed',
+                    `Could not download the update.\n\n${e?.message ?? String(e)}`
+                  );
                 }
               },
             },
           ]
         );
       } else {
-        Alert.alert('Up to Date', 'You are running the latest version');
+        Alert.alert('Up to Date', `You are running the latest version.\n\n${diagnostic}`);
       }
     } catch (err: any) {
-      if (String(err?.message ?? '').includes('ERR_UPDATES_DISABLED')) {
-        Alert.alert('Not Available', 'Updates are only available in release builds');
+      const msg = String(err?.message ?? err ?? 'Unknown error');
+      if (msg.includes('ERR_UPDATES_DISABLED')) {
+        Alert.alert('Not Available', 'Updates are only available in release builds.');
       } else {
-        Alert.alert('Error', 'Failed to check for updates');
+        Alert.alert('Update Check Failed', msg);
       }
     } finally {
       setCheckingUpdate(false);
@@ -175,31 +293,88 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: isLandscape ? 76 : 100 }}>
+      <ScrollView
+        {...elasticScroll}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: isLandscape ? 80 : 110 }}
+        showsVerticalScrollIndicator={false}
+      >
         <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Store Information</Text>
-          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Store Name</Text>
+          <SectionHeader title="Store Information" />
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Store name</Text>
           <TextInput
-            style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+            style={[styles.input, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
             value={storeName}
             onChangeText={saveStoreName}
             placeholder="Store name"
             placeholderTextColor={colors.disabled}
           />
-          <View style={[styles.infoRow, { borderBottomColor: colors.glassStroke }]}>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Logged in as</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>{user?.username} ({user?.role})</Text>
+          <View style={styles.row}>
+            <IconBadge name="person-outline" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{user?.username}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                {user?.role === 'admin' ? 'Administrator' : 'Staff'}
+              </Text>
+            </View>
           </View>
         </Card>
 
         <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Biometric Login</Text>
+          <SectionHeader title="Language & Region" hint="Applies to dates, times and amounts" />
+          <SettingRow
+            icon="globe-outline"
+            title="Language"
+            value={LANGUAGES.find(l => l.value === locale)?.label ?? locale}
+            onPress={() => setShowLanguageModal(true)}
+          />
+          <SettingRow
+            icon="time-outline"
+            title="Time zone"
+            value={TIMEZONES.find(t => t.value === timeZone)?.label ?? timeZone}
+            onPress={() => setShowTimeZoneModal(true)}
+          />
+          <SettingRow
+            icon="cash-outline"
+            title="Currency"
+            value={`${currencySymbol} (${currencyCode})`}
+            onPress={() => setShowCurrencyModal(true)}
+            last
+          />
+          <View style={[styles.preview, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+            <Text style={[styles.previewLabel, { color: colors.textSecondary }]}>Preview · current date & time</Text>
+            <Text style={[styles.previewValue, { color: colors.primary }]}>{formatDate(new Date().toISOString())}</Text>
+          </View>
+        </Card>
+
+        <Card style={styles.section}>
+          <SectionHeader title="Appearance" />
+          <View style={styles.toggleRow}>
+            <IconBadge name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Dark mode</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>Switch between light and dark</Text>
+            </View>
+            <View ref={switchRef} collapsable={false}>
+              <Switch
+                value={mode === 'dark'}
+                onValueChange={handleThemeToggle}
+                trackColor={{ false: colors.disabled, true: colors.primary }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
+        </Card>
+
+        <Card style={styles.section}>
+          <SectionHeader title="Security" hint="Biometric sign-in on this device" />
           {isAdmin() && (
-            <View style={styles.themeRow}>
-              <View style={styles.themeInfo}>
-                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Allow biometric login on this device</Text>
-                <Text style={[styles.bioHint, { color: colors.textSecondary }]}>
-                  {bioCapable ? `${bioLabel} detected` : 'No biometric hardware or enrollment found'}
+            <View style={[styles.toggleRow, styles.rowDivider, { borderBottomColor: colors.glassStroke }]}>
+              <IconBadge name="shield-checkmark-outline" />
+              <View style={styles.rowText}>
+                <Text style={[styles.rowTitle, { color: colors.text }]}>Allow on this device</Text>
+                <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                  {bioCapable ? `${bioLabel} detected` : 'No biometric hardware found'}
                 </Text>
               </View>
               <Switch
@@ -211,10 +386,11 @@ export default function SettingsScreen() {
               />
             </View>
           )}
-          <View style={[styles.themeRow, isAdmin() && styles.bioSecondRow]}>
-            <View style={styles.themeInfo}>
-              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Sign in with my biometrics</Text>
-              <Text style={[styles.bioHint, { color: colors.textSecondary }]}>
+          <View style={styles.toggleRow}>
+            <IconBadge name="finger-print-outline" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>Sign in with {bioLabel.toLowerCase()}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
                 {!bioCapable
                   ? `${bioLabel} not available on this device`
                   : !globalBio
@@ -234,15 +410,19 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
+        <Card style={styles.section}>
+          <SectionHeader title="Manage" />
+          <SettingRow icon="receipt-outline" title="Sales History" onPress={() => router.push('/(app)/pos/history')} />
+          <SettingRow icon="pricetags-outline" title="Brand Logo" onPress={() => router.push('/(app)/brand-logo')} />
+          <SettingRow icon="qr-code-outline" title="Payment QR Codes" onPress={() => router.push('/(app)/payment-qr')} last />
+        </Card>
+
         {isAdmin() && (
           <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Loyalty Program</Text>
-            <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
-              Members earn 1 point per pesos spent, redeemable as discount
-            </Text>
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Pesos spent per point earned</Text>
+            <SectionHeader title="Loyalty Program" hint="Members earn points on every purchase" />
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pesos spent per point earned</Text>
             <TextInput
-              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
               value={earnRateInput}
               onChangeText={(t) => setEarnRateInput(t.replace(/[^.\d]/g, ''))}
               onEndEditing={() => {
@@ -252,9 +432,9 @@ export default function SettingsScreen() {
               }}
               keyboardType="decimal-pad"
             />
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Discount value of 1 point (₱)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Discount value of 1 point ({currencySymbol})</Text>
             <TextInput
-              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
               value={pointValueInput}
               onChangeText={(t) => setPointValueInput(t.replace(/[^.\d]/g, ''))}
               onEndEditing={() => {
@@ -264,9 +444,9 @@ export default function SettingsScreen() {
               }}
               keyboardType="decimal-pad"
             />
-            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Member card page URL</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Member card page URL</Text>
             <TextInput
-              style={[styles.storeNameInput, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
+              style={[styles.input, { color: colors.text, borderColor: colors.glassStroke, backgroundColor: colors.glassFillStrong }]}
               value={cardUrlInput}
               onChangeText={setCardUrlInput}
               onEndEditing={() => saveCardPageUrl(cardUrlInput)}
@@ -276,114 +456,134 @@ export default function SettingsScreen() {
               autoCorrect={false}
               keyboardType="url"
             />
-            <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>
-              Host loyalty-card-page/index.html online (e.g. Netlify Drop), paste the link here so members can scan to download their card
+            <Text style={[styles.sectionDesc, { color: colors.textSecondary, marginTop: SPACING.sm }]}>
+              Host loyalty-card-page/index.html online, paste the link so members can scan to download their card.
             </Text>
           </Card>
         )}
 
         <Card style={styles.section}>
-          <View style={styles.themeRow}>
-            <View style={styles.themeInfo}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Dark Mode</Text>
-              <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Toggle between light and dark appearance</Text>
-            </View>
-            <View ref={switchRef} collapsable={false}>
-              <Switch
-                value={mode === 'dark'}
-                onValueChange={handleThemeToggle}
-                trackColor={{ false: colors.disabled, true: colors.primary }}
-                thumbColor="#fff"
-              />
-            </View>
+          <SectionHeader title="Data Management" hint="Export inventory to Excel or bulk import from a file" />
+          <View style={styles.buttonRow}>
+            <Button title="Export" onPress={handleExport} variant="primary" loading={exporting} style={styles.flexBtn} />
+            <Button title="Import" onPress={handleImport} variant="outline" loading={importing} style={styles.flexBtn} />
           </View>
         </Card>
 
-        {isAdmin() && (
-          <>
-            {ADMIN_NAV_LINKS.map((action, i) => (
-              <TouchableOpacity
-                key={`nav-${i}`}
-                style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.actionIcon}>{action.icon}</Text>
-                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
-                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-
-        {!isAdmin() && (
-          <>
-            {STAFF_NAV_LINKS.map((action, i) => (
-              <TouchableOpacity
-                key={`staff-${i}`}
-                style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
-                onPress={() => router.push(action.route as any)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.actionIcon}>{action.icon}</Text>
-                <Text style={[styles.actionTitle, { color: colors.text }]}>{action.title}</Text>
-                <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
-          onPress={() => router.push('/(app)/brand-logo')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionIcon}>🏷️</Text>
-          <Text style={[styles.actionTitle, { color: colors.text }]}>Brand Logo</Text>
-          <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionCard, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}
-          onPress={() => router.push('/(app)/payment-qr')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.actionIcon}>📱</Text>
-          <Text style={[styles.actionTitle, { color: colors.text }]}>Payment QR Codes</Text>
-          <Text style={[styles.actionArrow, { color: colors.textSecondary }]}>›</Text>
-        </TouchableOpacity>
-
         <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Currency</Text>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Select the currency used throughout the app</Text>
-          <Text style={[styles.currentCurrency, { color: colors.primary }]}>
-            Current: {currencySymbol} ({currencyCode})
-          </Text>
-          <Button title="Change Currency" onPress={() => setShowCurrencyModal(true)} variant="outline" />
+          <SectionHeader title="About" />
+          <View style={styles.row}>
+            <IconBadge name="information-circle-outline" />
+            <View style={styles.rowText}>
+              <Text style={[styles.rowTitle, { color: colors.text }]}>{APP_NAME}</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                Offline-first mobile POS · v{Constants.expoConfig?.version ?? '1.0.0'}
+              </Text>
+            </View>
+          </View>
+          <Button
+            title="Check for Updates"
+            onPress={handleCheckUpdate}
+            variant="outline"
+            loading={checkingUpdate}
+            style={{ marginTop: SPACING.sm }}
+          />
         </Card>
+
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: colors.danger }]}
+          onPress={() => { logout(); router.replace('/(auth)/login'); }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.logoutBtnText}>Logout</Text>
+        </TouchableOpacity>
+
+        <Modal visible={showLanguageModal} transparent animationType="slide" onRequestClose={() => setShowLanguageModal(false)} statusBarTranslucent>
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Language</Text>
+              <FlatList
+                {...elasticScroll}
+                data={LANGUAGES}
+                keyExtractor={l => l.value}
+                renderItem={({ item: l }) => (
+                  <TouchableOpacity
+                    style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, locale === l.value && { backgroundColor: colors.primarySurface }]}
+                    onPress={() => { saveLocale(l.value); setShowLanguageModal(false); }}
+                  >
+                    <View style={styles.modalRowInfo}>
+                      <Text style={[styles.currencyLabel, { color: colors.text }]}>{l.label}</Text>
+                      <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{l.value}</Text>
+                    </View>
+                    {locale === l.value && (
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowLanguageModal(false)}>
+                <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={showTimeZoneModal} transparent animationType="slide" onRequestClose={() => setShowTimeZoneModal(false)} statusBarTranslucent>
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time Zone</Text>
+              <FlatList
+                {...elasticScroll}
+                data={TIMEZONES}
+                keyExtractor={t => t.value || 'device'}
+                renderItem={({ item: t }) => (
+                  <TouchableOpacity
+                    style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, timeZone === t.value && { backgroundColor: colors.primarySurface }]}
+                    onPress={() => { saveTimeZone(t.value); setShowTimeZoneModal(false); }}
+                  >
+                    <View style={styles.modalRowInfo}>
+                      <Text style={[styles.currencyLabel, { color: colors.text }]}>{t.label}</Text>
+                      {t.value ? (
+                        <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{t.value}</Text>
+                      ) : null}
+                    </View>
+                    {timeZone === t.value && (
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
+                    )}
+                  </TouchableOpacity>
+                )}
+              />
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowTimeZoneModal(false)}>
+                <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
           <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>
               <FlatList
+                {...elasticScroll}
                 data={currencies}
                 keyExtractor={c => c.code}
                 renderItem={({ item: c }) => (
                   <TouchableOpacity
-                    style={[styles.currencyRow, { borderBottomColor: colors.glassStroke }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
+                    style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, currencyCode === c.code && { backgroundColor: colors.primarySurface }]}
                     onPress={() => {
                       setCurrency(c.symbol, c.code);
                       setShowCurrencyModal(false);
                     }}
                   >
-                    <Text style={[styles.currencySymbol, { color: colors.text }]}>{c.symbol}</Text>
-                    <View style={styles.currencyInfo}>
+                    <Text style={[styles.modalSymbol, { color: colors.text }]}>{c.symbol}</Text>
+                    <View style={styles.modalRowInfo}>
                       <Text style={[styles.currencyLabel, { color: colors.text }]}>{c.code}</Text>
                       <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{c.label}</Text>
                     </View>
                     {currencyCode === c.code && (
-                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
+                      <Ionicons name="checkmark" size={20} color={colors.primary} />
                     )}
                   </TouchableOpacity>
                 )}
@@ -394,53 +594,6 @@ export default function SettingsScreen() {
             </View>
           </View>
         </Modal>
-
-        <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Management</Text>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Export your inventory to Excel or bulk import from a file</Text>
-          <View style={styles.exportImportRow}>
-            <Button
-              title="Export to Excel"
-              onPress={handleExport}
-              variant="primary"
-              loading={exporting}
-              style={styles.actionBtn}
-            />
-            <Button
-              title="Import from File"
-              onPress={handleImport}
-              variant="outline"
-              loading={importing}
-              style={styles.actionBtn}
-            />
-          </View>
-        </Card>
-
-        <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Updates</Text>
-          <Text style={[styles.sectionDesc, { color: colors.textSecondary }]}>Check for new updates to the app</Text>
-          <Button
-            title="Check for Updates"
-            onPress={handleCheckUpdate}
-            variant="outline"
-            loading={checkingUpdate}
-          />
-        </Card>
-
-        <Card style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>{APP_NAME} v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
-          <Text style={[styles.aboutText, { color: colors.textSecondary }]}>Offline-First Mobile POS System</Text>
-        </Card>
-
-        <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: colors.danger }]}
-          onPress={() => { logout(); router.replace('/(auth)/login'); }}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.logoutIcon}>🚪</Text>
-          <Text style={styles.logoutBtnText}>Logout</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -451,97 +604,116 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.md,
   },
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    borderRadius: RADII.sm,
-    borderWidth: 1,
-    marginBottom: SPACING.sm,
-  },
-  actionIcon: {
-    width: 28,
-    fontSize: 20,
-    textAlign: 'center',
-    marginRight: SPACING.md,
-  },
-  actionTitle: {
-    flex: 1,
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
-  },
-  actionArrow: {
-    width: 20,
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'transparent',
-    marginVertical: SPACING.sm,
-  },
   section: {
     marginBottom: SPACING.md,
-    paddingTop: SPACING.sm,
+  },
+  sectionHeader: {
+    marginBottom: SPACING.sm,
   },
   sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
-    marginBottom: SPACING.xs,
+    fontSize: FONT_SIZES.md,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   sectionDesc: {
-    fontSize: FONT_SIZES.sm,
-    marginBottom: SPACING.md,
-  },
-  themeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  themeInfo: {
-    flex: 1,
-    marginRight: SPACING.md,
-  },
-  bioSecondRow: {
-    marginTop: SPACING.md,
-  },
-  bioHint: {
     fontSize: FONT_SIZES.xs,
     marginTop: 2,
   },
-  currentCurrency: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '700',
-    marginBottom: SPACING.md,
+  fieldLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginTop: SPACING.sm,
   },
-  currencyRow: {
+  input: {
+    fontSize: FONT_SIZES.md,
+    borderWidth: 1,
+    borderRadius: RADII.sm,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
-    borderRadius: RADII.sm,
-    marginBottom: SPACING.xs,
+    paddingVertical: 12,
+    gap: SPACING.md,
   },
-  currencySymbol: {
-    fontSize: FONT_SIZES.xl,
-    fontWeight: '700',
-    width: 40,
-    textAlign: 'center',
+  rowDivider: {
+    borderBottomWidth: 1,
   },
-  currencyInfo: {
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: SPACING.md,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: {
     flex: 1,
-    marginLeft: SPACING.md,
   },
-  currencyLabel: {
+  rowTitle: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
   },
-  currencyDesc: {
+  rowTitleFlex: {
+    flex: 1,
+  },
+  rowSubtitle: {
     fontSize: FONT_SIZES.xs,
     marginTop: 1,
   },
-  checkmark: {
+  rowValue: {
+    fontSize: FONT_SIZES.sm,
+    fontWeight: '600',
+    marginLeft: SPACING.sm,
+    maxWidth: 160,
+    textAlign: 'right',
+  },
+  preview: {
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    borderRadius: RADII.sm,
+    borderWidth: 1,
+  },
+  previewLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontWeight: '600',
+  },
+  previewValue: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  flexBtn: {
+    flex: 1,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    borderRadius: RADII.sm,
+    padding: SPACING.lg,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.xl + 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  logoutBtnText: {
+    color: '#FFFFFF',
     fontSize: FONT_SIZES.lg,
     fontWeight: '700',
   },
@@ -563,6 +735,32 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     textAlign: 'center',
   },
+  modalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADII.sm,
+    marginBottom: SPACING.xs,
+  },
+  modalSymbol: {
+    fontSize: FONT_SIZES.xl,
+    fontWeight: '700',
+    width: 40,
+    textAlign: 'center',
+  },
+  modalRowInfo: {
+    flex: 1,
+    marginLeft: SPACING.md,
+  },
+  currencyLabel: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+  },
+  currencyDesc: {
+    fontSize: FONT_SIZES.xs,
+    marginTop: 1,
+  },
   modalCloseBtn: {
     alignItems: 'center',
     paddingVertical: SPACING.md,
@@ -571,62 +769,5 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: FONT_SIZES.md,
     fontWeight: '600',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.xs,
-    borderBottomWidth: 1,
-  },
-  infoLabel: {
-    fontSize: FONT_SIZES.sm,
-  },
-  infoValue: {
-    fontSize: FONT_SIZES.sm,
-    fontWeight: '600',
-  },
-  storeNameInput: {
-    fontSize: FONT_SIZES.md,
-    fontWeight: '600',
-    borderWidth: 1,
-    borderRadius: RADII.sm,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    width: '100%',
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.md,
-  },
-  exportImportRow: {
-    gap: SPACING.sm,
-  },
-  actionBtn: {
-    marginBottom: SPACING.xs,
-  },
-  aboutText: {
-    fontSize: FONT_SIZES.sm,
-    lineHeight: 22,
-  },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: RADII.sm,
-    padding: SPACING.lg,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.xl + 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  logoutIcon: {
-    fontSize: 22,
-    marginRight: SPACING.sm,
-  },
-  logoutBtnText: {
-    color: '#FFFFFF',
-    fontSize: FONT_SIZES.lg,
-    fontWeight: '700',
   },
 });

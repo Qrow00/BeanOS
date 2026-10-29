@@ -1,6 +1,10 @@
-import { StyleSheet, Text, TouchableOpacity, View, StyleProp, ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, StyleProp, ViewStyle, Animated } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useThemeStore } from '../../../store/themeStore';
 import { FONT_SIZES, RADII, SPACING } from '../../../utils/constants';
+import { usePressScale } from '../../../hooks/usePressScale';
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface GlassChipProps {
   label: string;
@@ -13,19 +17,27 @@ interface GlassChipProps {
 export default function GlassChip({ label, active = false, onPress, style, color }: GlassChipProps) {
   const colors = useThemeStore(s => s.colors);
   const accent = color || colors.primary;
+  const { scale, onPressIn, onPressOut } = usePressScale(0.94);
+  const clampedScale = scale.interpolate({
+    inputRange: [0.94, 1],
+    outputRange: [0.94, 1],
+    extrapolate: 'clamp',
+  });
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       style={[
         styles.chip,
         {
           backgroundColor: active ? colors.primarySurface : colors.glassFill,
-          borderColor: active ? accent : colors.glassStroke,
         },
+        { transform: [{ scale: clampedScale }] },
         style,
       ]}
       onPress={onPress}
-      activeOpacity={0.7}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      activeOpacity={0.9}
     >
       {color ? (
         <View style={[styles.dot, { backgroundColor: color }]} />
@@ -41,7 +53,7 @@ export default function GlassChip({ label, active = false, onPress, style, color
       >
         {label}
       </Text>
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 
@@ -53,7 +65,6 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: SPACING.md,
     borderRadius: RADII.full,
-    borderWidth: 1,
   },
   dot: {
     width: 8,

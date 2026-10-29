@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SPACING, FONT_SIZES } from '../../../src/utils/constants';
+import { elasticScroll } from '../../../src/utils/motion';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useUserStore } from '../../../src/store/userStore';
 import Input from '../../../src/components/ui/Input';
@@ -55,7 +56,11 @@ export default function NewUserScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        {...elasticScroll}
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 120 }}
+      >
       <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← Users</Text>

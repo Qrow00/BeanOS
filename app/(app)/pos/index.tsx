@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions } from 'react-native';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions, Animated } from 'react-native';
 import { SPACING, FONT_SIZES, RADII, GLASS, getCategoryColor } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
 import { useCartStore } from '../../../src/store/cartStore';
@@ -23,14 +23,20 @@ import CoffeeConfetti from '../../../src/components/pos/CoffeeConfetti';
 import LoyaltyScanModal from '../../../src/components/pos/LoyaltyScanModal';
 import RedeemPointsModal from '../../../src/components/pos/RedeemPointsModal';
 import GlassPanel from '../../../src/components/ui/glass/GlassPanel';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import PressableScale from '../../../src/components/ui/PressableScale';
 import GlassChip from '../../../src/components/ui/glass/GlassChip';
 import GradientButton from '../../../src/components/ui/glass/GradientButton';
 import { useBreakpoint } from '../../../src/hooks/useBreakpoint';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { springs, elasticScroll } from '../../../src/utils/motion';
+import { useTranslation } from '../../../src/i18n';
 import type { ViewMode, PaymentMethod, HoldTransaction, Product } from '../../../src/types/database';
 import type { CartItem } from '../../../src/types/store';
 
 export default function POSScreen() {
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const products = useProductStore(s => s.products);
   const fetchProducts = useProductStore(s => s.fetchProducts);
   const searchQuery = useProductStore(s => s.searchQuery);
@@ -80,11 +86,12 @@ export default function POSScreen() {
   const [showConfetti, setShowConfetti] = useState(false);
 
   const bp = useBreakpoint();
+  const { t } = useTranslation();
   const { width: screenWidth } = useWindowDimensions();
   const cartPaneWidth = Math.min(430, Math.max(330, Math.round(screenWidth * 0.38)));
   const productsAreaWidth = bp.posSplitView ? screenWidth - cartPaneWidth - SPACING.md * 4 : screenWidth;
   const numColumns = productsAreaWidth >= 700 ? 5 : productsAreaWidth >= 500 ? 4 : 3;
-  const tileWidth = (productsAreaWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns;
+  const tileWidth = Math.floor((productsAreaWidth - SPACING.md * 2 - SPACING.sm * (numColumns - 1)) / numColumns);
 
   const filteredProducts = useMemo(() => {
     let filtered = [...products];
@@ -135,6 +142,18 @@ export default function POSScreen() {
     return sub - disc;
   });
   const itemCount = useCartStore(s => s.items.reduce((sum, i) => sum + i.quantity, 0));
+  const fabBadgeScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (itemCount > 0) {
+      fabBadgeScale.setValue(1.3);
+      Animated.spring(fabBadgeScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        ...springs.bouncy,
+      }).start();
+    }
+  }, [itemCount]);
 
   const maxRedeemablePoints = loyaltyPointValue > 0
     ? Math.min(Math.floor(total / loyaltyPointValue), loyaltyCustomer?.points_balance ?? 0)
@@ -156,6 +175,7 @@ export default function POSScreen() {
     pointsEarned: number;
     pointsRedeemed: number;
     remainingBalance: number;
+    saleDate?: string;
   } | null>(null);
 
   const [quantityTarget, setQuantityTarget] = useState<{ productId: number; current: number; max: number } | null>(null);
@@ -274,6 +294,7 @@ export default function POSScreen() {
         pointsEarned,
         pointsRedeemed: effectiveRedeemPoints,
         remainingBalance,
+        saleDate: new Date().toISOString(),
       });
 
       setShowPaymentModal(false);
@@ -326,9 +347,9 @@ export default function POSScreen() {
 
   const keyExtractor = useCallback((item: Product) => String(item.id), []);
 
-  const renderListHeader = useCallback((includeTodayRow: boolean) => (
+const renderListHeader = useCallback((includeTodayRow: boolean) => (
     <View>
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder="Search products to add..." />
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} placeholder={`${t('pos_search_products')} to add...`} />
 
       {categories.length > 0 && (
         <View style={styles.categoryRow}>
@@ -345,24 +366,22 @@ export default function POSScreen() {
         </View>
       )}
 
-      {includeTodayRow && (
-        <View style={styles.todayRow}>
-          <View style={[styles.todayPill, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
-            <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>TODAY</Text>
-            <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
-          </View>
-          <View style={styles.viewToggleGroup}>
-            <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
-              <Text style={[styles.pillBtnText, { color: colors.text }]}>
-                {viewMode === 'list' ? '▦ Grid' : '☰ List'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowSortModal(true)} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
-              <Text style={[styles.pillBtnText, { color: colors.text }]}>⇅ Sort</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={styles.todayRow}>
+        <View style={[styles.todayPill, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+          <Text style={[styles.todayLabel, { color: colors.textSecondary }]}>TODAY</Text>
+          <Text style={[styles.todayValue, { color: colors.success }]}>{formatCurrency(todayTotal)}</Text>
         </View>
-      )}
+        <View style={styles.viewToggleGroup}>
+          <TouchableOpacity onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+            <Text style={[styles.pillBtnText, { color: colors.text }]}>
+              {viewMode === 'list' ? 'Grid' : 'List'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowSortModal(true)} style={[styles.pillBtn, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+            <Text style={[styles.pillBtnText, { color: colors.text }]}>Sort</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <RecentItems onAddToCart={addToCartIfValid} />
     </View>
@@ -370,30 +389,36 @@ export default function POSScreen() {
 
   const listHeader = useMemo(() => renderListHeader(!bp.posSplitView), [renderListHeader, bp.posSplitView]);
 
-  const renderListItem = useCallback(({ item }: { item: Product }) => (
-    <ProductCard
-      product={item}
-      onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
-    />
-  ), [addToCartIfValid]);
+  const renderListItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <FadeInView index={index} onceKey={`${animationSession}-${viewMode}-${selectedCategory}-pos-list-${item.id}`}>
+      <ProductCard
+        product={item}
+        onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
+      />
+    </FadeInView>
+  ), [addToCartIfValid, animationSession, viewMode, selectedCategory]);
 
-  const renderGridItem = useCallback(({ item }: { item: Product }) => (
-    <ProductTile
-      product={item}
-      tileWidth={tileWidth}
-      onAddToCart={() => addToCartIfValid(item)}
-    />
-  ), [addToCartIfValid, tileWidth]);
+  const renderGridItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <FadeInView index={index} onceKey={`${animationSession}-${viewMode}-${selectedCategory}-pos-grid-${item.id}`}>
+      <ProductTile
+        product={item}
+        tileWidth={tileWidth}
+        onAddToCart={() => addToCartIfValid(item)}
+      />
+    </FadeInView>
+  ), [addToCartIfValid, tileWidth, animationSession, viewMode, selectedCategory]);
 
   const renderProductList = () =>
     viewMode === 'list' ? (
       <FlatList
         key="list"
+        {...elasticScroll}
         data={sortedProducts}
         keyExtractor={keyExtractor}
         ListHeaderComponent={listHeader}
         renderItem={renderListItem}
-        contentContainerStyle={styles.productList}
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.productList, { flexGrow: 1, paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -406,13 +431,15 @@ export default function POSScreen() {
     ) : (
       <FlatList
         key={`grid-${numColumns}`}
+        {...elasticScroll}
         data={sortedProducts}
         keyExtractor={keyExtractor}
         numColumns={numColumns}
         columnWrapperStyle={styles.gridRow}
         ListHeaderComponent={listHeader}
         renderItem={renderGridItem}
-        contentContainerStyle={styles.productList}
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.productList, { flexGrow: 1, paddingBottom: 120 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -448,16 +475,19 @@ export default function POSScreen() {
       {cartTab === 'cart' ? (
         <>
           <FlatList
+            {...elasticScroll}
             data={items}
             keyExtractor={(item) => String(item.product.id)}
             style={{ flex: 1 }}
             renderItem={({ item }) => (
-              <CartItemComponent
-                item={item}
-                onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
-                onRemove={() => removeItem(item.product.id)}
-                onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
-              />
+              <FadeInView offset={8}>
+                <CartItemComponent
+                  item={item}
+                  onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
+                  onRemove={() => removeItem(item.product.id)}
+                  onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
+                />
+              </FadeInView>
             )}
             contentContainerStyle={styles.cartList}
             showsVerticalScrollIndicator={false}
@@ -472,7 +502,7 @@ export default function POSScreen() {
           />
 
           {items.length > 0 && (
-            <View style={styles.checkoutSection}>
+            <View style={[styles.checkoutSection, { paddingBottom: bp.posSplitView ? 96 : 0 }]}>
               <View style={styles.discountRow}>
                 <TouchableOpacity
                   style={[styles.outlineBtn, { borderColor: colors.primary, backgroundColor: colors.primarySurface }]}
@@ -567,6 +597,7 @@ export default function POSScreen() {
           )}
 
           <FlatList
+            {...elasticScroll}
             data={holds}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
@@ -762,6 +793,7 @@ export default function POSScreen() {
           pointsRedeemed={receiptData.pointsRedeemed}
           remainingBalance={receiptData.remainingBalance}
           onNewSale={handleNewSale}
+          date={receiptData.saleDate}
         />
         {showConfetti && <CoffeeConfetti />}
       </View>
@@ -802,23 +834,25 @@ export default function POSScreen() {
   if (showCart) {
     return (
       <View style={[styles.container, { paddingBottom: 92 }]}>
-        <View style={styles.cartHeader}>
-          <TouchableOpacity onPress={() => setShowCart(false)}>
-            <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
-          </TouchableOpacity>
-          <Text style={[styles.cartTitle, { color: colors.text }]}>Cart ({itemCount})</Text>
-          {cartTab === 'cart' ? (
-            <TouchableOpacity onPress={() => { clearCart(); }}>
-              <Text style={[styles.clearBtn, { color: colors.danger }]}>Clear</Text>
+        <FadeInView offset={24} style={{ flex: 1 }}>
+          <View style={styles.cartHeader}>
+            <TouchableOpacity onPress={() => setShowCart(false)}>
+              <Text style={[styles.backBtn, { color: colors.primary }]}>← Products</Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => { setCartTab('cart'); }}>
-              <Text style={[styles.clearBtn, { color: colors.primary }]}>Back</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+            <Text style={[styles.cartTitle, { color: colors.text }]}>Cart ({itemCount})</Text>
+            {cartTab === 'cart' ? (
+              <TouchableOpacity onPress={() => { clearCart(); }}>
+                <Text style={[styles.clearBtn, { color: colors.danger }]}>Clear</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => { setCartTab('cart'); }}>
+                <Text style={[styles.clearBtn, { color: colors.primary }]}>Back</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {renderCartContent(false)}
+          {renderCartContent(false)}
+        </FadeInView>
 
         {renderModals()}
       </View>
@@ -836,17 +870,17 @@ export default function POSScreen() {
 
       {renderProductList()}
 
-      <TouchableOpacity
+      <PressableScale
         style={[styles.cartFab, { backgroundColor: colors.primary, bottom: 96, right: SPACING.lg }]}
         onPress={() => setShowCart(true)}
       >
         <Text style={styles.cartFabText}>🛒</Text>
         {itemCount > 0 && (
-          <View style={[styles.cartBadge, { backgroundColor: colors.secondaryAccent }]}>
+          <Animated.View style={[styles.cartBadge, { backgroundColor: colors.secondaryAccent, transform: [{ scale: fabBadgeScale }] }]}>
             <Text style={styles.cartBadgeText}>{itemCount}</Text>
-          </View>
+          </Animated.View>
         )}
-      </TouchableOpacity>
+      </PressableScale>
 
       {renderModals()}
     </View>
@@ -1033,6 +1067,7 @@ const styles = StyleSheet.create({
   },
   checkoutSection: {
     paddingTop: SPACING.sm,
+    paddingBottom: 0,
   },
   discountRow: {
     flexDirection: 'row',

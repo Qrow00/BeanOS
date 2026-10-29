@@ -7,10 +7,14 @@ import { useThemeStore } from '../../../src/store/themeStore';
 import { useCouponStore } from '../../../src/store/couponStore';
 import { useAuthStore } from '../../../src/store/authStore';
 import CouponCard from '../../../src/components/coupons/CouponCard';
+import FadeInView from '../../../src/components/ui/FadeInView';
+import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
+import { elasticScroll } from '../../../src/utils/motion';
 
 export default function CouponsScreen() {
   const router = useRouter();
   const colors = useThemeStore(s => s.colors);
+  const animationSession = useAnimationSession();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const { coupons, fetchCoupons, deleteCoupon, isLoading } = useCouponStore();
@@ -23,13 +27,16 @@ export default function CouponsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
+        {...elasticScroll}
         data={coupons}
         keyExtractor={(item) => String(item.id)}
-        renderItem={({ item }) => (
-          <CouponCard
-            coupon={item}
-            onDelete={isAdmin() ? () => deleteCoupon(item.id) : undefined}
-          />
+        renderItem={({ item, index }) => (
+          <FadeInView index={index} onceKey={`${animationSession}-coupon-${item.id}`}>
+            <CouponCard
+              coupon={item}
+              onDelete={isAdmin() ? () => deleteCoupon(item.id) : undefined}
+            />
+          </FadeInView>
         )}
         contentContainerStyle={[styles.list, { paddingBottom: isLandscape ? 56 : 80 }]}
         refreshing={isLoading}

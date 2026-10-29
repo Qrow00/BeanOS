@@ -22,6 +22,7 @@ interface ReceiptScreenProps {
   pointsRedeemed?: number;
   remainingBalance?: number;
   onNewSale: () => void;
+  date?: string;
 }
 
 export default function ReceiptScreen({
@@ -39,19 +40,20 @@ export default function ReceiptScreen({
   pointsRedeemed = 0,
   remainingBalance = 0,
   onNewSale,
+  date,
 }: ReceiptScreenProps) {
   const colors = useThemeStore(s => s.colors);
   const storeName = useSettingsStore(s => s.storeName);
 
   return (
     <View style={styles.container}>
-      <GlassPanel strong radius={RADII.xl} androidRealBlur intensity={55} style={styles.ticket}>
+      <GlassPanel strong radius={RADII.xl} style={styles.ticket}>
         <Text style={[styles.storeName, { color: colors.text }]}>{storeName}</Text>
         <View style={[styles.titleBadge, { backgroundColor: colors.primarySurface }]}>
           <Text style={[styles.title, { color: colors.primary }]}>RECEIPT</Text>
         </View>
         <Text style={[styles.receiptNo, { color: colors.secondaryAccent }]}>#{receiptNumber}</Text>
-        <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(new Date().toISOString())}</Text>
+        <Text style={[styles.date, { color: colors.textSecondary }]}>{formatDate(date || new Date().toISOString())}</Text>
         <Text style={[styles.cashier, { color: colors.textSecondary }]}>Cashier: {cashierName}</Text>
 
         <View style={styles.perfDivider}>
@@ -90,7 +92,7 @@ export default function ReceiptScreen({
           </View>
         </View>
 
-        <View style={[styles.infoSection, { backgroundColor: colors.glassFill, borderColor: colors.glassStroke }]}>
+        <View style={[styles.infoSection, { backgroundColor: colors.glassFill }]}>
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>Payment: {paymentMethod.toUpperCase()}</Text>
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>Amount: {formatCurrency(amountTendered)}</Text>
           {change > 0 && <Text style={[styles.infoText, { color: colors.success }]}>Change: {formatCurrency(change)}</Text>}
@@ -222,7 +224,6 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
     padding: SPACING.md,
     borderRadius: RADII.sm,
-    borderWidth: 1,
   },
   infoText: {
     fontSize: FONT_SIZES.sm,

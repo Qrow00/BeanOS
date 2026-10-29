@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SPACING, FONT_SIZES, RADII } from '../../../src/utils/constants';
+import { elasticScroll } from '../../../src/utils/motion';
 import { useThemeStore } from '../../../src/store/themeStore';
 import { useSettingsStore } from '../../../src/store/settingsStore';
 import { useCustomerStore } from '../../../src/store/customerStore';
@@ -47,7 +48,11 @@ export default function NewCustomerScreen() {
 
   if (created) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.createdContent}>
+      <ScrollView
+        {...elasticScroll}
+        style={styles.container}
+        contentContainerStyle={styles.createdContent}
+      >
         <Text style={[styles.doneTitle, { color: colors.text }]}>Member created 🎉</Text>
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
           Tap "Scan to Download" and let {created.name} scan the QR with their phone — they'll get a card page they can screenshot and keep.
@@ -92,7 +97,11 @@ export default function NewCustomerScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        {...elasticScroll}
+        contentContainerStyle={styles.form}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={[styles.label, { color: colors.textSecondary }]}>NICKNAME *</Text>
         <TextInput
           style={[styles.input, { backgroundColor: colors.glassFillStrong, color: colors.text, borderColor: colors.glassStroke }]}
