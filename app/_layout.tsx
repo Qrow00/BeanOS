@@ -4,7 +4,7 @@ import { View, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
 import { getDatabase } from '../src/database/connection';
-import { useThemeStore } from '../src/store/themeStore';
+import { useThemeStore, hydrateThemeFromCache } from '../src/store/themeStore';
 import { useSettingsStore } from '../src/store/settingsStore';
 import { applyLocale } from '../src/i18n';
 import AmbientBackground from '../src/components/ui/glass/AmbientBackground';
@@ -66,14 +66,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
+      await hydrateThemeFromCache();
+      setReady(true);
       try {
         const db = await getDatabase();
         await useThemeStore.getState().loadThemeFromDb(db);
         await useSettingsStore.getState().loadSettings(db);
         applyLocale(useSettingsStore.getState().locale);
       } catch (e) {
-      } finally {
-        setReady(true);
       }
     })();
   }, []);

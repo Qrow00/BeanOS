@@ -1,7 +1,29 @@
 import { create } from 'zustand';
 import { Appearance } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDatabase } from '../database/connection';
+
+const THEME_CACHE_KEY = 'beanos.theme_mode';
+
+function themeFor(mode: 'light' | 'dark'): ThemeColors {
+  return mode === 'dark' ? darkTheme : lightTheme;
+}
+
+export async function hydrateThemeFromCache(): Promise<void> {
+  try {
+    const cached = await AsyncStorage.getItem(THEME_CACHE_KEY);
+    if (cached === 'light' || cached === 'dark') {
+      useThemeStore.setState({ mode: cached, colors: themeFor(cached) });
+    }
+  } catch {}
+}
+
+async function cacheMode(mode: 'light' | 'dark') {
+  try {
+    await AsyncStorage.setItem(THEME_CACHE_KEY, mode);
+  } catch {}
+}
 
 export interface ThemeColors {
   background: string;
@@ -116,6 +138,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       );
       const saved = row?.value;
       const mode: 'light' | 'dark' = saved === 'light' || saved === 'dark' ? saved : getSystemMode();
+      await cacheMode(mode);
       set({ colors: mode === 'dark' ? darkTheme : lightTheme, mode, isLoading: false });
     } catch {
       set({ isLoading: false });
@@ -124,6 +147,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 
   toggleTheme: async () => {
     const newMode = get().mode === 'light' ? 'dark' : 'light';
+    set({ colors: newMode === 'dark' ? darkTheme : lightTheme, mode: newMode });
+    await cacheMode(newMode);
     try {
       const db = await getDatabase();
       await db.runAsync(
@@ -132,6 +157,5 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
         newMode
       );
     } catch {}
-    set({ colors: newMode === 'dark' ? darkTheme : lightTheme, mode: newMode });
   },
 }));
