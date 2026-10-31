@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, StyleSheet, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import type { ThemeColors } from '../../store/themeStore';
 import type { User } from '../../types/database';
@@ -18,6 +18,19 @@ interface PinNumpadProps {
 export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoading, error, onBiometric }: PinNumpadProps) {
   const [pin, setPin] = useState('');
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const pinRef = useRef('');
+  const isLoadingRef = useRef(isLoading);
+  const onPinCompleteRef = useRef(onPinComplete);
+  const onBackRef = useRef(onBack);
+
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+  useEffect(() => { onPinCompleteRef.current = onPinComplete; }, [onPinComplete]);
+  useEffect(() => { onBackRef.current = onBack; }, [onBack]);
+
+  const updatePin = useCallback((next: string) => {
+    pinRef.current = next;
+    setPin(next);
+  }, []);
 
   const shake = useCallback(() => {
     Animated.sequence([
@@ -27,8 +40,8 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
       Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
-    setPin('');
-  }, [shakeAnim]);
+    updatePin('');
+  }, [shakeAnim, updatePin]);
 
   useEffect(() => {
     if (error) {
@@ -36,18 +49,52 @@ export default function PinNumpad({ user, onPinComplete, onBack, colors, isLoadi
     }
   }, [error, shake]);
 
-  const handlePress = (key: string) => {
+  const handlePress = useCallback((key: string) => {
+    if (isLoadingRef.current) return;
     if (key === 'backspace') {
-      setPin(prev => prev.slice(0, -1));
+      updatePin(pinRef.current.slice(0, -1));
       return;
     }
-    if (pin.length >= 4) return;
-    const next = pin + key;
-    setPin(next);
+    const current = pinRef.current;
+    if (current.length >= 4) return;
+    const next = current + key;
+    updatePin(next);
     if (next.length === 4) {
-      setTimeout(() => onPinComplete(next), 100);
+      setTimeout(() => onPinCompleteRef.current(next), 100);
     }
-  };
+  }, [updatePin]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      if (isLoadingRef.current) return;
+      if (event.key >= '0' && event.key <= '9' && event.key.length === 1) {
+        event.preventDefault();
+        handlePress(event.key);
+        return;
+      }
+      if (event.key === 'Backspace' || event.key === 'Delete') {
+        event.preventDefault();
+        handlePress('backspace');
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onBackRef.current();
+        return;
+      }
+      if (event.key === 'Enter' && pinRef.current.length === 4) {
+        event.preventDefault();
+        onPinCompleteRef.current(pinRef.current);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handlePress]);
 
   const initial = user.display_name.charAt(0).toUpperCase();
 
