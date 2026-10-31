@@ -19,9 +19,11 @@ interface ProductTileProps {
 
 function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
   const colors = useThemeStore(s => s.colors);
+  const mode = useThemeStore(s => s.mode);
   const quantity = useCartStore(s => s.items.find(i => i.product.id === product.id)?.quantity ?? 0);
   const outOfStock = product.stock_quantity <= 0;
   const inCart = quantity > 0;
+  const accent = getProductIconColor(product.icon_color, product.category);
   const { scale, onPressIn, onPressOut } = usePressScale(0.95);
   const badgeScale = useRef(new Animated.Value(1)).current;
 
@@ -40,7 +42,14 @@ function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
     <AnimatedTouchable
       style={[
         styles.tile,
-        { backgroundColor: colors.glassFill, borderColor: inCart ? colors.primary : colors.glassStroke, width: tileWidth, height: tileWidth },
+        {
+          backgroundColor: colors.glassFill,
+          borderColor: inCart ? colors.primary : colors.glassStroke,
+          shadowColor: mode === 'dark' ? '#000' : accent,
+          shadowOpacity: mode === 'dark' ? 0.3 : 0.16,
+          width: tileWidth,
+          height: tileWidth,
+        },
         { transform: [{ scale }] },
       ]}
       onPress={onAddToCart}
@@ -49,18 +58,31 @@ function ProductTile({ product, tileWidth, onAddToCart }: ProductTileProps) {
       disabled={outOfStock}
       activeOpacity={0.9}
     >
+      <LinearGradient
+        pointerEvents="none"
+        colors={
+          mode === 'dark'
+            ? ['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.00)', 'rgba(255,255,255,0.05)']
+            : ['rgba(255,255,255,0.85)', 'rgba(255,255,255,0.15)', 'rgba(255,255,255,0.35)']
+        }
+        locations={[0, 0.55, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.sheen}
+      />
       {inCart && (
         <Animated.View style={[styles.badge, { backgroundColor: colors.primary, transform: [{ scale: badgeScale }] }]}>
           <Text style={styles.badgeText}>{quantity}</Text>
         </Animated.View>
       )}
       <View style={styles.avatarWrapper}>
-        <View style={[styles.avatarRing, { borderColor: getProductIconColor(product.icon_color, product.category) + '55' }]}>
+        <View style={[styles.avatarGlow, { backgroundColor: accent }]} />
+        <View style={[styles.avatarRing, { borderColor: accent + '55' }]}>
           {product.image_uri ? (
             <Image source={{ uri: product.image_uri }} style={styles.avatar} />
           ) : (
             <LinearGradient
-              colors={[getProductIconColor(product.icon_color, product.category), getProductIconColor(product.icon_color, product.category) + '99']}
+              colors={[accent, accent + '99']}
               style={styles.avatar}
             >
               <Text style={styles.avatarText}>{product.name.charAt(0).toUpperCase()}</Text>
@@ -100,6 +122,20 @@ const styles = StyleSheet.create({
     borderRadius: RADII.full,
     borderWidth: 1,
     marginBottom: SPACING.xs,
+  },
+  avatarGlow: {
+    position: 'absolute',
+    width: 84,
+    height: 84,
+    marginLeft: -42,
+    marginTop: -42,
+    top: '50%',
+    left: '50%',
+    borderRadius: RADII.full,
+    opacity: 0.16,
+  },
+  sheen: {
+    ...StyleSheet.absoluteFillObject,
   },
   avatar: {
     width: 54,

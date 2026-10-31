@@ -14,6 +14,7 @@ import ReceiptScreen from '../../../src/components/pos/ReceiptScreen';
 import GlassCard from '../../../src/components/ui/glass/GlassCard';
 import GlassChip from '../../../src/components/ui/glass/GlassChip';
 import GlassPanel from '../../../src/components/ui/glass/GlassPanel';
+import { SkeletonList } from '../../../src/components/ui/Skeleton';
 import FadeInView from '../../../src/components/ui/FadeInView';
 import { useAnimationSession } from '../../../src/hooks/useAnimationSession';
 import { elasticScroll } from '../../../src/utils/motion';
@@ -238,9 +239,13 @@ export default function SalesHistoryScreen() {
           isAdmin() ? <Text style={[styles.swipeHint, { color: colors.textSecondary }]}>Swipe left on a sale to delete</Text> : null
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No sales recorded yet</Text>
-          </View>
+          loading ? (
+            <SkeletonList rows={4} />
+          ) : (
+            <View style={styles.empty}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No sales recorded yet</Text>
+            </View>
+          )
         }
       />
     </>

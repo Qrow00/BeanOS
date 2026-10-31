@@ -78,7 +78,7 @@ export default function AppLayout() {
               <BlurView
                 intensity={mode === 'dark' ? 50 : 60}
                 tint={mode === 'dark' ? 'dark' : 'light'}
-                experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+                experimentalBlurMethod={Platform.OS === 'android' ? 'none' : undefined}
                 style={StyleSheet.absoluteFill}
               />
             </View>
