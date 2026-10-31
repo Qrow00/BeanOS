@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stack } from 'expo-router';
 import { View, StyleSheet, Animated, Easing, Platform } from 'react-native';
+import { ThemeProvider, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
 import { getDatabase } from '../src/database/connection';
@@ -22,6 +23,13 @@ export default function RootLayout() {
   const currencySymbol = useSettingsStore(s => s.currencySymbol);
   const locale = useSettingsStore(s => s.locale);
   const splashFade = useRef(new Animated.Value(1)).current;
+  const navigationTheme = useMemo(() => {
+    const base = mode === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: { ...base.colors, background: 'transparent', card: 'transparent' },
+    };
+  }, [mode]);
   const finishIntro = useCallback(() => {
     introFlag.__beanIntroPlayed = true;
     setIntroDone(true);
@@ -96,14 +104,16 @@ export default function RootLayout() {
     >
       <AmbientBackground />
       {ready && (
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'fade',
-            animationDuration: 220,
-            contentStyle: { backgroundColor: 'transparent' },
-          }}
-        />
+        <ThemeProvider value={navigationTheme}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'fade',
+              animationDuration: 220,
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
+          />
+        </ThemeProvider>
       )}
       {!overlayGone && (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: splashFade }]}>
