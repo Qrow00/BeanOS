@@ -40,7 +40,7 @@ export default function UsersScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       <FlatList
         {...elasticScroll}
         data={users}

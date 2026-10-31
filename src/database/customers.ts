@@ -1,4 +1,4 @@
-import type { SQLiteDatabase } from 'expo-sqlite';
+import { supabase } from '../services/supabase';
 import type { Customer, LoyaltyLedgerEntry } from '../types/database';
 
 function generateCode(): string {
@@ -10,27 +10,44 @@ function generateCode(): string {
   return `LC-${code}`;
 }
 
-export async function getAllCustomers(db: SQLiteDatabase): Promise<Customer[]> {
-  return db.getAllAsync<Customer>('SELECT * FROM customers ORDER BY name');
+export async function getAllCustomers(): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .order('name');
+  if (error) throw error;
+  return data || [];
 }
 
-export async function searchCustomers(db: SQLiteDatabase, query: string): Promise<Customer[]> {
+export async function searchCustomers(query: string): Promise<Customer[]> {
   const q = `%${query}%`;
-  return db.getAllAsync<Customer>(
-    'SELECT * FROM customers WHERE name LIKE ? OR code LIKE ? OR phone LIKE ? ORDER BY name',
-    q, q, q
-  );
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .or(`name.ilike.${q},code.ilike.${q},phone.ilike.${q}`)
+    .order('name');
+  if (error) throw error;
+  return data || [];
 }
 
-export async function getCustomerById(db: SQLiteDatabase, id: number): Promise<Customer | null> {
-  return db.getFirstAsync<Customer>('SELECT * FROM customers WHERE id = ?', id);
+export async function getCustomerById(id: number): Promise<Customer | null> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) return null;
+  return data;
 }
 
-export async function getCustomerByCode(db: SQLiteDatabase, code: string): Promise<Customer | null> {
-  return db.getFirstAsync<Customer>(
-    'SELECT * FROM customers WHERE UPPER(code) = UPPER(?)',
-    code.trim()
-  );
+export async function getCustomerByCode(code: string): Promise<Customer | null> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('code', code.trim())
+    .single();
+  if (error) return null;
+  return data;
 }
 
 export interface CustomerInput {
@@ -38,95 +55,105 @@ export interface CustomerInput {
   phone?: string | null;
 }
 
-export async function createCustomer(
-  db: SQLiteDatabase,
-  input: CustomerInput
-): Promise<Customer> {
+export async function createCustomer(input: CustomerInput): Promise<Customer> {
   for (let attempt = 0; attempt < 10; attempt++) {
     const code = generateCode();
-    try {
-      const result = await db.runAsync(
-        `INSERT INTO customers (code, name, phone) VALUES (?, ?, ?)`,
-        code,
-        input.name.trim(),
-        input.phone?.trim() || null
-      );
-      const created = await getCustomerById(db, result.lastInsertRowId as number);
-      if (created) return created;
-    } catch (err: any) {
-      if (!String(err?.message || '').includes('UNIQUE')) throw err;
-    }
+    const { data, error } = await supabase
+      .from('customers')
+      .insert({ code, name: input.name.trim(), phone: input.phone?.trim() || null })
+      .select()
+      .single();
+    if (data) return data;
+    if (error && !String(error.message).includes('unique')) throw error;
   }
   throw new Error('Failed to generate unique customer code');
 }
 
 export async function updateCustomer(
-  db: SQLiteDatabase,
   id: number,
   input: Partial<CustomerInput> & { is_active?: number }
 ): Promise<void> {
-  const fields: string[] = [];
-  const values: any[] = [];
-  if (input.name !== undefined) { fields.push('name = ?'); values.push(input.name.trim()); }
-  if (input.phone !== undefined) { fields.push('phone = ?'); values.push(input.phone?.trim() || null); }
-  if (input.is_active !== undefined) { fields.push('is_active = ?'); values.push(input.is_active); }
-  if (fields.length === 0) return;
-  fields.push("updated_at = datetime('now')");
-  values.push(id);
-  await db.runAsync(`UPDATE customers SET ${fields.join(', ')} WHERE id = ?`, ...values);
+  const updates: any = {};
+  if (input.name !== undefined) updates.name = input.name.trim();
+  if (input.phone !== undefined) updates.phone = input.phone?.trim() || null;
+  if (input.is_active !== undefined) updates.is_active = input.is_active;
+  if (Object.keys(updates).length === 0) return;
+  
+  const { error } = await supabase
+    .from('customers')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw error;
 }
 
-export async function deleteCustomer(db: SQLiteDatabase, id: number): Promise<void> {
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    await txn.runAsync('DELETE FROM loyalty_ledger WHERE customer_id = ?', id);
-    await txn.runAsync('UPDATE sales SET customer_id = NULL WHERE customer_id = ?', id);
-    await txn.runAsync('DELETE FROM customers WHERE id = ?', id);
-  });
+export async function deleteCustomer(id: number): Promise<void> {
+  // Assuming cascading deletes are configured on loyalty_ledger and sales tables in Supabase
+  const { error } = await supabase
+    .from('customers')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function adjustPoints(
-  db: SQLiteDatabase,
   customerId: number,
   deltaPoints: number,
   description: string,
   createdBy: number
 ): Promise<number> {
-  let newBalance = 0;
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    const customer = await txn.getFirstAsync<Customer>(
-      'SELECT * FROM customers WHERE id = ?',
-      customerId
-    );
-    if (!customer) throw new Error('Customer not found');
-    newBalance = customer.points_balance + deltaPoints;
-    if (newBalance < 0) throw new Error('Adjustment would make balance negative');
-
-    await txn.runAsync(
-      "INSERT INTO loyalty_ledger (customer_id, sale_id, type, points, description, created_by) VALUES (?, NULL, 'adjust', ?, ?, ?)",
-      customerId, deltaPoints, description, createdBy
-    );
-    await txn.runAsync(
-      `UPDATE customers SET points_balance = ?, lifetime_points = MAX(lifetime_points + ?, 0), updated_at = datetime('now') WHERE id = ?`,
-      newBalance, Math.max(deltaPoints, 0), customerId
-    );
+  // NOTE: This should be implemented as a Postgres RPC function for atomicity.
+  // Client-side flow for now:
+  const { data: customer, error: fetchError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', customerId)
+    .single();
+  if (fetchError || !customer) throw new Error('Customer not found');
+  
+  const newBalance = customer.points_balance + deltaPoints;
+  if (newBalance < 0) throw new Error('Adjustment would make balance negative');
+  
+  const { error: ledgerError } = await supabase.from('loyalty_ledger').insert({
+    customer_id: customerId,
+    sale_id: null,
+    type: 'adjust',
+    points: deltaPoints,
+    description,
+    created_by: createdBy,
   });
+  if (ledgerError) throw ledgerError;
+  
+  const { error: updateError } = await supabase
+    .from('customers')
+    .update({
+      points_balance: newBalance,
+      lifetime_points: Math.max(customer.lifetime_points + (deltaPoints > 0 ? deltaPoints : 0), 0),
+    })
+    .eq('id', customerId);
+  if (updateError) throw updateError;
+  
   return newBalance;
 }
 
 export async function getLedger(
-  db: SQLiteDatabase,
   customerId: number,
   limit: number = 100
 ): Promise<LoyaltyLedgerEntry[]> {
-  return db.getAllAsync<LoyaltyLedgerEntry>(
-    'SELECT * FROM loyalty_ledger WHERE customer_id = ? ORDER BY id DESC LIMIT ?',
-    customerId, limit
-  );
+  const { data, error } = await supabase
+    .from('loyalty_ledger')
+    .select('*')
+    .eq('customer_id', customerId)
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data || [];
 }
 
-export async function getActiveCustomersCount(db: SQLiteDatabase): Promise<number> {
-  const row = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM customers WHERE is_active = 1'
-  );
-  return row?.count ?? 0;
+export async function getActiveCustomersCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from('customers')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', 1);
+  if (error) throw error;
+  return count ?? 0;
 }

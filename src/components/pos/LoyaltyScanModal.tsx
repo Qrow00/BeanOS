@@ -5,7 +5,6 @@ import GradientButton from '../ui/glass/GradientButton';
 import FullScreenScanner from '../pos/FullScreenScanner';
 import { SPACING, FONT_SIZES, RADII } from '../../utils/constants';
 import { useThemeStore } from '../../store/themeStore';
-import { getDatabase } from '../../database/connection';
 import * as customersRepo from '../../database/customers';
 import type { Customer } from '../../types/database';
 
@@ -40,10 +39,9 @@ export default function LoyaltyScanModal({ visible, onClose, onAttach }: Loyalty
     setLoadingMembers(true);
     const timer = setTimeout(async () => {
       try {
-        const db = await getDatabase();
         const list = query
-          ? await customersRepo.searchCustomers(db, query)
-          : await customersRepo.getAllCustomers(db);
+          ? await customersRepo.searchCustomers(query)
+          : await customersRepo.getAllCustomers();
         if (!cancelled) setMembers(list);
       } catch {
         if (!cancelled) setMembers([]);
@@ -62,8 +60,7 @@ export default function LoyaltyScanModal({ visible, onClose, onAttach }: Loyalty
     if (!trimmed) return;
     setLookingUp(true);
     try {
-      const db = await getDatabase();
-      const customer = await customersRepo.getCustomerByCode(db, trimmed);
+      const customer = await customersRepo.getCustomerByCode(trimmed);
       if (!customer) {
         setStatus({ type: 'error', message: `No member found for code "${trimmed}"` });
         return;

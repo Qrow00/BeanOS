@@ -57,7 +57,7 @@ export const lightTheme: ThemeColors = {
 };
 
 export const darkTheme: ThemeColors = {
-  background: '#07070B',
+  background: '#17110C',
   surface: '#12121C',
   text: '#F4F4F6',
   textSecondary: '#9CA0AF',
@@ -77,12 +77,16 @@ export const darkTheme: ThemeColors = {
   primaryGradientFrom: '#A78BFA',
   primaryGradientTo: '#6366F1',
   secondaryAccent: '#22D3EE',
-  blobA: 'rgba(124,58,237,0.30)',
-  blobB: 'rgba(34,211,238,0.16)',
-  blobC: 'rgba(99,102,241,0.22)',
+  blobA: 'rgba(124,58,237,0.80)',
+  blobB: 'rgba(34,211,238,0.60)',
+  blobC: 'rgba(99,102,241,0.70)',
 };
 
 function getSystemMode(): 'light' | 'dark' {
+  if (typeof window !== 'undefined' && window.navigator) {
+    // On web, default to dark if the system is dark or if it's the first run
+    return Appearance.getColorScheme() === 'dark' ? 'dark' : 'dark'; 
+  }
   return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
 }
 

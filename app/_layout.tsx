@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Stack } from 'expo-router';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
 import { getDatabase } from '../src/database/connection';
@@ -17,7 +17,8 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [introDone, setIntroDone] = useState(wasIntroPlayed);
   const [overlayGone, setOverlayGone] = useState(wasIntroPlayed);
-  const mode = useThemeStore(s => s.mode);
+  const { colors, mode } = useThemeStore();
+  const uiScale = useSettingsStore(s => s.uiScale);
   const currencySymbol = useSettingsStore(s => s.currencySymbol);
   const locale = useSettingsStore(s => s.locale);
   const splashFade = useRef(new Animated.Value(1)).current;
@@ -35,8 +36,33 @@ export default function RootLayout() {
   }, [isUpdatePending]);
 
   useEffect(() => {
-    applyLocale(locale);
-  }, [locale]);
+    if (Platform.OS === 'web') {
+      const style = document.createElement('style');
+      style.innerHTML = `
+        html, body, #root, .root {
+          background-color: ${mode === 'dark' ? '#17110C' : '#F2EDE4'} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: 100vh !important;
+          width: 100vw !important;
+          overflow: hidden;
+        }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        if (document.head.contains(style)) {
+          document.head.removeChild(style);
+        }
+      };
+    }
+  }, [mode]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.body.style.zoom = `${uiScale}`;
+    }
+  }, [uiScale]);
+
 
   useEffect(() => {
     (async () => {
@@ -66,20 +92,18 @@ export default function RootLayout() {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: mode === 'dark' ? '#17110C' : '#FAF7F2' }]}
+      style={[styles.container, { backgroundColor: '#17110C' }]}
     >
+      <AmbientBackground />
       {ready && (
-        <>
-          <AmbientBackground />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'fade',
-              animationDuration: 220,
-              contentStyle: { backgroundColor: 'transparent' },
-            }}
-          />
-        </>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'fade',
+            animationDuration: 220,
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
       )}
       {!overlayGone && (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: splashFade }]}>
@@ -96,5 +120,12 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // Force web root to fill the viewport
+    ...Platform.select({
+      web: {
+        height: '100vh' as any,
+        width: '100vw' as any,
+      },
+    }),
   },
 });

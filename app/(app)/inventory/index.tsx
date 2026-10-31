@@ -64,7 +64,7 @@ export default function InventoryScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       <FlatList
         {...elasticScroll}
         data={filteredProducts}

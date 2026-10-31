@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions, Animated } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Modal, Alert, useWindowDimensions, Animated, PanResponder } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SPACING, FONT_SIZES, RADII, GLASS, getCategoryColor } from '../../../src/utils/constants';
 import { useProductStore } from '../../../src/store/productStore';
 import { useCartStore } from '../../../src/store/cartStore';
@@ -42,7 +43,10 @@ export default function POSScreen() {
   const searchQuery = useProductStore(s => s.searchQuery);
   const setSearchQuery = useProductStore(s => s.setSearchQuery);
   const selectedCategory = useProductStore(s => s.selectedCategory);
-  const setSelectedCategory = useProductStore(s => s.setSelectedCategory);
+  const setSelectedCategory = useCallback((category: string | null) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
+    useProductStore.getState().setSelectedCategory(category);
+  }, []);
 
   const items = useCartStore(s => s.items);
   const manualDiscount = useCartStore(s => s.manualDiscount);
@@ -241,6 +245,7 @@ export default function POSScreen() {
 
   const handleCheckout = async (method: PaymentMethod, amountTendered: number) => {
     if (items.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setProcessing(true);
     try {
       const db = await getDatabase();
@@ -326,6 +331,7 @@ export default function POSScreen() {
   };
 
   const addToCartIfValid = useCallback((product: any, openCart?: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     addItem(product);
     if (openCart) setShowCart(true);
   }, [addItem, setShowCart]);
@@ -389,14 +395,44 @@ const renderListHeader = useCallback((includeTodayRow: boolean) => (
 
   const listHeader = useMemo(() => renderListHeader(!bp.posSplitView), [renderListHeader, bp.posSplitView]);
 
-  const renderListItem = useCallback(({ item, index }: { item: Product; index: number }) => (
-    <FadeInView index={index} onceKey={`${animationSession}-${viewMode}-${selectedCategory}-pos-list-${item.id}`}>
-      <ProductCard
-        product={item}
-        onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
-      />
-    </FadeInView>
-  ), [addToCartIfValid, animationSession, viewMode, selectedCategory]);
+  const SwipeableCartItem = ({ item, children }: { item: CartItem; children: React.ReactNode }) => {
+    const itemRef = useRef(item);
+    itemRef.current = item;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const deleteTranslate = translateX.interpolate({
+      inputRange: [-80, 0],
+      outputRange: [0, 80],
+      extrapolate: 'clamp',
+    });
+    const panResponder = useRef(
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy),
+        onPanResponderMove: (_, g) => {
+          if (g.dx < 0) translateX.setValue(Math.max(g.dx, -80));
+        },
+        onPanResponderRelease: (_, g) => {
+          if (g.dx < -50) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            removeItem(itemRef.current.product.id);
+          }
+          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+        },
+      })
+    ).current;
+
+    return (
+      <View style={{ marginBottom: SPACING.xs }}>
+        <View style={{ borderRadius: RADII.md, overflow: 'hidden' }}>
+          <Animated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
+            {children}
+          </Animated.View>
+          <Animated.View style={[styles.swipeDeleteContainer, { backgroundColor: colors.danger, transform: [{ translateX: deleteTranslate }] }]}>
+            <Text style={styles.swipeDeleteText}>Delete</Text>
+          </Animated.View>
+        </View>
+      </View>
+    );
+  };
 
   const renderGridItem = useCallback(({ item, index }: { item: Product; index: number }) => (
     <FadeInView index={index} onceKey={`${animationSession}-${viewMode}-${selectedCategory}-pos-grid-${item.id}`}>
@@ -407,6 +443,15 @@ const renderListHeader = useCallback((includeTodayRow: boolean) => (
       />
     </FadeInView>
   ), [addToCartIfValid, tileWidth, animationSession, viewMode, selectedCategory]);
+
+  const renderListItem = useCallback(({ item, index }: { item: Product; index: number }) => (
+    <FadeInView index={index} onceKey={`${animationSession}-${viewMode}-${selectedCategory}-pos-list-${item.id}`}>
+      <ProductCard
+        product={item}
+        onPress={item.stock_quantity > 0 ? () => addToCartIfValid(item) : undefined}
+      />
+    </FadeInView>
+  ), [addToCartIfValid, animationSession, viewMode, selectedCategory]);
 
   const renderProductList = () =>
     viewMode === 'list' ? (
@@ -481,12 +526,14 @@ const renderListHeader = useCallback((includeTodayRow: boolean) => (
             style={{ flex: 1 }}
             renderItem={({ item }) => (
               <FadeInView offset={8}>
-                <CartItemComponent
-                  item={item}
-                  onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
-                  onRemove={() => removeItem(item.product.id)}
-                  onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
-                />
+                <SwipeableCartItem item={item}>
+                  <CartItemComponent
+                    item={item}
+                    onUpdateQuantity={(qty) => updateQuantity(item.product.id, qty)}
+                    onRemove={() => removeItem(item.product.id)}
+                    onQuantityPress={() => handleQuantityTap(item.product.id, item.quantity, item.product.stock_quantity)}
+                  />
+                </SwipeableCartItem>
               </FadeInView>
             )}
             contentContainerStyle={styles.cartList}
@@ -868,7 +915,9 @@ const renderListHeader = useCallback((includeTodayRow: boolean) => (
         </View>
       </View>
 
-      {renderProductList()}
+      <View style={styles.mainPanel}>
+        {renderProductList()}
+      </View>
 
       <PressableScale
         style={[styles.cartFab, { backgroundColor: colors.primary, bottom: 96, right: SPACING.lg }]}
@@ -891,6 +940,25 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: SPACING.md,
+  },
+  mainPanel: {
+    flex: 1,
+    padding: 0,
+    marginBottom: SPACING.md,
+  },
+  swipeDeleteContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    width: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeDeleteText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: FONT_SIZES.sm,
   },
   splitRow: {
     flex: 1,

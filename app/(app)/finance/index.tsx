@@ -82,7 +82,7 @@ export default function FinanceScreen() {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       <View style={[styles.header, { borderBottomColor: colors.glassStroke }]}>
         <TouchableOpacity onPress={() => router.replace('/(app)/pos')}>
           <Text style={[styles.backBtn, { color: colors.primary }]}>← POS</Text>

@@ -17,6 +17,7 @@ export interface SettingsState {
   loyaltyEarnRate: number;
   loyaltyPointValue: number;
   cardPageUrl: string;
+  uiScale: number;
   isLoading: boolean;
   loadSettings: (db: SQLiteDatabase) => Promise<void>;
   saveStoreName: (name: string) => Promise<void>;
@@ -30,6 +31,7 @@ export interface SettingsState {
   saveMayaCompanyName: (name: string) => Promise<void>;
   saveLoyaltyRates: (earnRate: number, pointValue: number) => Promise<void>;
   saveCardPageUrl: (url: string) => Promise<void>;
+  saveUiScale: (scale: number) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -46,6 +48,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   loyaltyEarnRate: 50,
   loyaltyPointValue: 1,
   cardPageUrl: '',
+  uiScale: 1,
   isLoading: true,
 
   loadSettings: async (db: SQLiteDatabase) => {
@@ -145,12 +148,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         set({ loyaltyPointValue: parseFloat(pointValue.value) });
       }
 
-      const cardPageUrl = await db.getFirstAsync<{ value: string }>(
+      const uiScale = await db.getFirstAsync<{ value: string }>(
         'SELECT value FROM app_settings WHERE key = ?',
-        'loyalty_card_page_url'
+        'ui_scale'
       );
-      if (cardPageUrl?.value) {
-        set({ cardPageUrl: cardPageUrl.value });
+      if (uiScale?.value) {
+        set({ uiScale: parseFloat(uiScale.value) });
       }
     } catch {}
     set({ isLoading: false });
@@ -298,4 +301,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       );
     } catch {}
   },
+
+  saveUiScale: async (scale: number) => {
+    set({ uiScale: scale });
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        'INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)',
+        'ui_scale',
+        String(scale)
+      );
+    } catch {}
+  },
+
 }));

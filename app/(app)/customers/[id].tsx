@@ -55,8 +55,7 @@ export default function CustomerDetailScreen() {
 
   const loadLedger = async () => {
     try {
-      const db = await getDatabase();
-      setLedger(await customersRepo.getLedger(db, customerId, 100));
+      setLedger(await customersRepo.getLedger(customerId, 100));
     } catch {}
   };
 

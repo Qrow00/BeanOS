@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, useWindowDimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SPACING, FONT_SIZES, APP_NAME, RADII, BREAKPOINTS } from '../../src/utils/constants';
 import { useAuthStore } from '../../src/store/authStore';
@@ -12,6 +12,7 @@ import Logo from '../../src/components/ui/Logo';
 import UserProfileCard from '../../src/components/auth/UserProfileCard';
 import PinNumpad from '../../src/components/auth/PinNumpad';
 import GlassPanel from '../../src/components/ui/glass/GlassPanel';
+import AmbientBackground from '../../src/components/ui/glass/AmbientBackground';
 
 export default function LoginScreen() {
   const [users, setUsers] = useState<User[]>([]);
@@ -78,7 +79,8 @@ export default function LoginScreen() {
 
   if (selectedUser) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <AmbientBackground />
         <View style={styles.pinWrapper}>
           <PinNumpad
             user={selectedUser}
@@ -95,7 +97,8 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <AmbientBackground />
       <View style={styles.selectWrapper}>
         <View style={styles.header}>
           <Logo size={170} />
@@ -129,16 +132,24 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    ...Platform.select({
+      web: {
+        minHeight: '100vh' as any,
+        width: '100vw' as any,
+      },
+    }),
   },
   selectWrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.lg,
+    zIndex: 1,
   },
   pinWrapper: {
     flex: 1,
     justifyContent: 'center',
+    zIndex: 1,
   },
   header: {
     alignItems: 'center',

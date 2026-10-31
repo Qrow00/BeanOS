@@ -1,14 +1,6 @@
 import { create } from 'zustand';
-import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Customer } from '../types/database';
-import { getDatabase } from '../database/connection';
 import * as customersRepo from '../database/customers';
-
-let cachedDb: SQLiteDatabase | null = null;
-async function getDb(): Promise<SQLiteDatabase> {
-  if (!cachedDb) cachedDb = await getDatabase();
-  return cachedDb;
-}
 
 export interface CustomerState {
   customers: Customer[];
@@ -29,8 +21,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
   fetchCustomers: async () => {
     set({ isLoading: true });
     try {
-      const db = await getDb();
-      const customers = await customersRepo.getAllCustomers(db);
+      const customers = await customersRepo.getAllCustomers();
       set({ customers });
     } catch (e) {
       set({ error: 'Failed to load members' });
@@ -40,21 +31,18 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
   },
 
   addCustomer: async (name, phone) => {
-    const db = await getDb();
-    const created = await customersRepo.createCustomer(db, { name, phone });
+    const created = await customersRepo.createCustomer({ name, phone });
     await get().fetchCustomers();
     return created;
   },
 
   updateCustomer: async (id, input) => {
-    const db = await getDb();
-    await customersRepo.updateCustomer(db, id, input);
+    await customersRepo.updateCustomer(id, input);
     await get().fetchCustomers();
   },
 
   deleteCustomer: async (id) => {
-    const db = await getDb();
-    await customersRepo.deleteCustomer(db, id);
+    await customersRepo.deleteCustomer(id);
     await get().fetchCustomers();
   },
 
@@ -62,8 +50,7 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     const { useAuthStore } = await import('./authStore');
     const userId = useAuthStore.getState().user?.id;
     if (!userId) throw new Error('Not signed in');
-    const db = await getDb();
-    const newBalance = await customersRepo.adjustPoints(db, id, delta, description, userId);
+    const newBalance = await customersRepo.adjustPoints(id, delta, description, userId);
     await get().fetchCustomers();
     return newBalance;
   },

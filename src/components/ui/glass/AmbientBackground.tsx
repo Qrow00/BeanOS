@@ -13,16 +13,10 @@ function GlowBlob({ size, style, color, opacity }: { size: number; style: any; c
 export default function AmbientBackground() {
   const colors = useThemeStore(s => s.colors);
   const isLight = useThemeStore(s => s.mode === 'light');
-  const blobOpacity = isLight ? 0.38 : 0.26;
+  const blobOpacity = isLight ? 0.35 : 0.23;
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <LinearGradient
-        colors={[colors.background, colors.surface]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0.7, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
       <GlowBlob size={420} color={colors.blobA} style={styles.blobA} opacity={blobOpacity} />
       <GlowBlob size={360} color={colors.blobB} style={styles.blobB} opacity={blobOpacity} />
       <GlowBlob size={300} color={colors.blobC} style={styles.blobC} opacity={blobOpacity} />

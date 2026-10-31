@@ -77,6 +77,13 @@ const TIMEZONES = [
   { value: 'UTC', label: 'UTC' },
 ];
 
+const UI_SCALES = [
+  { value: 0.8, label: 'Small (80%)' },
+  { value: 1, label: 'Default (100%)' },
+  { value: 1.2, label: 'Large (120%)' },
+  { value: 1.5, label: 'Extra Large (150%)' },
+];
+
 type IconName = keyof typeof Ionicons.glyphMap;
 
 function SectionHeader({ title, hint }: { title: string; hint?: string }) {
@@ -137,7 +144,7 @@ export default function SettingsScreen() {
   const { user, isAdmin, logout } = useAuthStore();
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
-  const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency } = useSettingsStore();
+  const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency, uiScale, saveUiScale } = useSettingsStore();
   const locale = useSettingsStore(s => s.locale);
   const timeZone = useSettingsStore(s => s.timeZone);
   const saveLocale = useSettingsStore(s => s.saveLocale);
@@ -148,12 +155,14 @@ export default function SettingsScreen() {
   const cardPageUrl = useSettingsStore(s => s.cardPageUrl);
   const saveCardPageUrl = useSettingsStore(s => s.saveCardPageUrl);
   const { width, height } = useWindowDimensions();
+
   const isLandscape = width > height;
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showTimeZoneModal, setShowTimeZoneModal] = useState(false);
+  const [showUiScaleModal, setShowUiScaleModal] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [earnRateInput, setEarnRateInput] = useState(String(loyaltyEarnRate));
   const [pointValueInput, setPointValueInput] = useState(String(loyaltyPointValue));
@@ -292,7 +301,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
       <ScrollView
         {...elasticScroll}
         style={styles.container}
@@ -347,24 +356,32 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
-        <Card style={styles.section}>
-          <SectionHeader title="Appearance" />
-          <View style={styles.toggleRow}>
-            <IconBadge name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} />
-            <View style={styles.rowText}>
-              <Text style={[styles.rowTitle, { color: colors.text }]}>Dark mode</Text>
-              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>Switch between light and dark</Text>
-            </View>
-            <View ref={switchRef} collapsable={false}>
-              <Switch
-                value={mode === 'dark'}
-                onValueChange={handleThemeToggle}
-                trackColor={{ false: colors.disabled, true: colors.primary }}
-                thumbColor="#fff"
-              />
-            </View>
-          </View>
-        </Card>
+         <Card style={styles.section}>
+           <SectionHeader title="Appearance" />
+           <View style={styles.toggleRow}>
+             <IconBadge name={mode === 'dark' ? 'moon-outline' : 'sunny-outline'} />
+             <View style={styles.rowText}>
+               <Text style={[styles.rowTitle, { color: colors.text }]}>Dark mode</Text>
+               <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>Switch between light and dark</Text>
+             </View>
+             <View ref={switchRef} collapsable={false}>
+               <Switch
+                 value={mode === 'dark'}
+                 onValueChange={handleThemeToggle}
+                 trackColor={{ false: colors.disabled, true: colors.primary }}
+                 thumbColor="#fff"
+               />
+             </View>
+           </View>
+           <SettingRow 
+             icon="resize-outline" 
+             title="UI Scale" 
+             value={`${Math.round(uiScale * 100)}%`} 
+             onPress={() => setShowUiScaleModal(true)} 
+             last 
+           />
+         </Card>
+
 
         <Card style={styles.section}>
           <SectionHeader title="Security" hint="Biometric sign-in on this device" />
@@ -529,39 +546,67 @@ export default function SettingsScreen() {
           </View>
         </Modal>
 
-        <Modal visible={showTimeZoneModal} transparent animationType="slide" onRequestClose={() => setShowTimeZoneModal(false)} statusBarTranslucent>
-          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-            <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time Zone</Text>
-              <FlatList
-                {...elasticScroll}
-                data={TIMEZONES}
-                keyExtractor={t => t.value || 'device'}
-                renderItem={({ item: t }) => (
-                  <TouchableOpacity
-                    style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, timeZone === t.value && { backgroundColor: colors.primarySurface }]}
-                    onPress={() => { saveTimeZone(t.value); setShowTimeZoneModal(false); }}
-                  >
-                    <View style={styles.modalRowInfo}>
-                      <Text style={[styles.currencyLabel, { color: colors.text }]}>{t.label}</Text>
-                      {t.value ? (
-                        <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{t.value}</Text>
-                      ) : null}
-                    </View>
-                    {timeZone === t.value && (
-                      <Ionicons name="checkmark" size={20} color={colors.primary} />
-                    )}
-                  </TouchableOpacity>
-                )}
-              />
-              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowTimeZoneModal(false)}>
-                <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
+          <Modal visible={showTimeZoneModal} transparent animationType="slide" onRequestClose={() => setShowTimeZoneModal(false)} statusBarTranslucent>
+            <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+              <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Select Time Zone</Text>
+                <FlatList
+                  {...elasticScroll}
+                  data={TIMEZONES}
+                  keyExtractor={t => t.value || 'device'}
+                  renderItem={({ item: t }) => (
+                    <TouchableOpacity
+                      style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, timeZone === t.value && { backgroundColor: colors.primarySurface }]}
+                      onPress={() => { saveTimeZone(t.value); setShowTimeZoneModal(false); }}
+                    >
+                      <View style={styles.modalRowInfo}>
+                        <Text style={[styles.currencyLabel, { color: colors.text }]}>{t.label}</Text>
+                        {t.value ? (
+                          <Text style={[styles.currencyDesc, { color: colors.textSecondary }]}>{t.value}</Text>
+                        ) : null}
+                      </View>
+                      {timeZone === t.value && (
+                        <Ionicons name="checkmark" size={20} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowTimeZoneModal(false)}>
+                  <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
+          <Modal visible={showUiScaleModal} transparent animationType="slide" onRequestClose={() => setShowUiScaleModal(false)} statusBarTranslucent>
+            <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+              <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>UI Scale</Text>
+                <FlatList
+                  {...elasticScroll}
+                  data={UI_SCALES}
+                  keyExtractor={s => String(s.value)}
+                  renderItem={({ item: s }) => (
+                    <TouchableOpacity
+                      style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, uiScale === s.value && { backgroundColor: colors.primarySurface }]}
+                      onPress={() => { saveUiScale(s.value); setShowUiScaleModal(false); }}
+                    >
+                      <View style={styles.modalRowInfo}>
+                        <Text style={[styles.currencyLabel, { color: colors.text }]}>{s.label}</Text>
+                      </View>
+                      {uiScale === s.value && (
+                        <Ionicons name="checkmark" size={20} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowUiScaleModal(false)}>
+                  <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+          <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
 
-        <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
           <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
             <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Select Currency</Text>

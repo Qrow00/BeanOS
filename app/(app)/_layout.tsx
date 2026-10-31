@@ -43,7 +43,7 @@ export default function AppLayout() {
   if (!isAuthenticated) return null;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <Tabs
         screenOptions={{
           headerShown: false,
