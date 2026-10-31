@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Alert, Switch, TouchableOpacity, Modal, FlatList, TextInput, useWindowDimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SPACING, FONT_SIZES, RADII, APP_NAME } from '../../src/utils/constants';
@@ -21,6 +21,7 @@ import {
 } from '../../src/services/biometrics';
 import Card from '../../src/components/ui/Card';
 import Button from '../../src/components/ui/Button';
+import UiScaleSlider from '../../src/components/ui/UiScaleSlider';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
 import { elasticScroll } from '../../src/utils/motion';
@@ -75,13 +76,6 @@ const TIMEZONES = [
   { value: 'Australia/Sydney', label: 'Sydney' },
   { value: 'Pacific/Auckland', label: 'Auckland' },
   { value: 'UTC', label: 'UTC' },
-];
-
-const UI_SCALES = [
-  { value: 0.8, label: 'Small (80%)' },
-  { value: 1, label: 'Default (100%)' },
-  { value: 1.2, label: 'Large (120%)' },
-  { value: 1.5, label: 'Extra Large (150%)' },
 ];
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -144,7 +138,7 @@ export default function SettingsScreen() {
   const { user, isAdmin, logout } = useAuthStore();
   const { fetchProducts } = useProductStore();
   const { colors, mode, toggleTheme, setThemeOverlay } = useThemeStore();
-  const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency, uiScale, saveUiScale } = useSettingsStore();
+  const { storeName, saveStoreName, currencySymbol, currencyCode, setCurrency, uiScale, saveUiScale, setUiScale } = useSettingsStore();
   const locale = useSettingsStore(s => s.locale);
   const timeZone = useSettingsStore(s => s.timeZone);
   const saveLocale = useSettingsStore(s => s.saveLocale);
@@ -162,7 +156,6 @@ export default function SettingsScreen() {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showTimeZoneModal, setShowTimeZoneModal] = useState(false);
-  const [showUiScaleModal, setShowUiScaleModal] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [earnRateInput, setEarnRateInput] = useState(String(loyaltyEarnRate));
   const [pointValueInput, setPointValueInput] = useState(String(loyaltyPointValue));
@@ -373,14 +366,29 @@ export default function SettingsScreen() {
                />
              </View>
            </View>
-           <SettingRow 
-             icon="resize-outline" 
-             title="UI Scale" 
-             value={`${Math.round(uiScale * 100)}%`} 
-             onPress={() => setShowUiScaleModal(true)} 
-             last 
-           />
-         </Card>
+            <View style={[styles.sliderBlock, { borderTopColor: colors.glassStroke }]}>
+              <View style={styles.sliderHeader}>
+                <IconBadge name="resize-outline" />
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowTitle, { color: colors.text }]}>UI size</Text>
+                  <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
+                    {Platform.OS === 'web' ? 'Zoom the whole interface' : 'Applies to the web version'}
+                  </Text>
+                </View>
+                <Text style={[styles.sliderValue, { color: colors.primary }]}>{Math.round(uiScale * 100)}%</Text>
+              </View>
+              <UiScaleSlider
+                value={uiScale}
+                onChange={setUiScale}
+                onRelease={saveUiScale}
+                colors={colors}
+              />
+              <View style={styles.sliderTicks}>
+                <Text style={[styles.sliderTickLabel, { color: colors.textSecondary }]}>Small · 80%</Text>
+                <Text style={[styles.sliderTickLabel, { color: colors.textSecondary }]}>Extra large · 150%</Text>
+              </View>
+            </View>
+          </Card>
 
 
         <Card style={styles.section}>
@@ -577,34 +585,6 @@ export default function SettingsScreen() {
               </View>
             </View>
           </Modal>
-          <Modal visible={showUiScaleModal} transparent animationType="slide" onRequestClose={() => setShowUiScaleModal(false)} statusBarTranslucent>
-            <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-              <View style={[styles.modalContent, { backgroundColor: colors.glassFillStrong, borderColor: colors.glassStroke }]}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>UI Scale</Text>
-                <FlatList
-                  {...elasticScroll}
-                  data={UI_SCALES}
-                  keyExtractor={s => String(s.value)}
-                  renderItem={({ item: s }) => (
-                    <TouchableOpacity
-                      style={[styles.modalRow, { borderBottomColor: colors.glassStroke }, uiScale === s.value && { backgroundColor: colors.primarySurface }]}
-                      onPress={() => { saveUiScale(s.value); setShowUiScaleModal(false); }}
-                    >
-                      <View style={styles.modalRowInfo}>
-                        <Text style={[styles.currencyLabel, { color: colors.text }]}>{s.label}</Text>
-                      </View>
-                      {uiScale === s.value && (
-                        <Ionicons name="checkmark" size={20} color={colors.primary} />
-                      )}
-                    </TouchableOpacity>
-                  )}
-                />
-                <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowUiScaleModal(false)}>
-                  <Text style={[styles.modalCloseText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
           <Modal visible={showCurrencyModal} transparent animationType="slide" onRequestClose={() => setShowCurrencyModal(false)} statusBarTranslucent>
 
           <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
@@ -719,6 +699,28 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
     maxWidth: 160,
     textAlign: 'right',
+  },
+  sliderBlock: {
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  sliderHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    marginBottom: SPACING.xs,
+  },
+  sliderValue: {
+    fontSize: FONT_SIZES.md,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  sliderTicks: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sliderTickLabel: {
+    fontSize: FONT_SIZES.xs,
   },
   preview: {
     marginTop: SPACING.md,

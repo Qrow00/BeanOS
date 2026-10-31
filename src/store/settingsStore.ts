@@ -32,6 +32,7 @@ export interface SettingsState {
   saveLoyaltyRates: (earnRate: number, pointValue: number) => Promise<void>;
   saveCardPageUrl: (url: string) => Promise<void>;
   saveUiScale: (scale: number) => Promise<void>;
+  setUiScale: (scale: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -300,6 +301,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         clean
       );
     } catch {}
+  },
+
+  setUiScale: (scale: number) => {
+    set({ uiScale: scale });
   },
 
   saveUiScale: async (scale: number) => {
