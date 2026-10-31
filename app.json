@@ -6,7 +6,7 @@
       "policy": "appVersion"
     },
     "slug": "mobile-pos",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -29,7 +29,7 @@
     },
      "android": {
        "package": "com.beanaroundcafe.mobilepos",
-       "versionCode": 4,
+       "versionCode": 5,
        "adaptiveIcon": {
          "foregroundImage": "./assets/adaptive-icon.png",
          "backgroundColor": "#ffffff"
